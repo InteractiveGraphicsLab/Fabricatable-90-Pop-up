@@ -28,7 +28,7 @@
 struct DeformProperties
 {
 	E_DEFORM_STEP step = E_DEFORM_STEP::DEFAULT;
-	Component *deform_mech = nullptr;
+	Component *deform_comp = nullptr;
 	Component *parent = nullptr;
 	Component *grand_parent = nullptr;
 	E_FOLD_TYPE fold_type = E_FOLD_TYPE::DEFAULT;

@@ -55,17 +55,17 @@ public:
 
 
 public:
-  void UpdateOAMech(double angle);
-  void AddOAMech(const PlaceProperties& place_props);
-  void DeleteOAMech(const DeleteProperties& delete_props);
-  double DeformOAMech(const DeformProperties& deform_props, double move_len);
-  void TrimOAMech();
+  void UpdateComponent(double angle);
+  void AddComponent(const PlaceProperties& place_props);
+  void DeleteComponent(const DeleteProperties& delete_props);
+  double DeformComponent(const DeformProperties& deform_props, double move_len);
+  void TrimComponent();
 
 
 public:
   bool CheckError();
   void FillPlane();
-  void ConvertPrintableOAMech();
+  void ConvertComponent();
   void TrimOutlines();
   bool SegmentSpace();
 
@@ -81,8 +81,8 @@ public:
 
 public:
   bool HitFoldEdge(const JUtil::Ray& ray, PlaceProperties& place_props) const;
-  bool HitOAMech(const JUtil::Ray& ray, DeleteProperties& delete_props) const;
-  bool HitOAMech(const JUtil::Ray& ray, DeformProperties& deform_props) const;
+  bool HitComponent(const JUtil::Ray& ray, DeleteProperties& delete_props) const;
+  bool HitComponent(const JUtil::Ray& ray, DeformProperties& deform_props) const;
 
 
 private:

@@ -39,6 +39,9 @@
     <Filter Include="Header Files\Structs\UI Properties">
       <UniqueIdentifier>{d380add6-140e-460c-b399-2257d1bb4a56}</UniqueIdentifier>
     </Filter>
+    <Filter Include="COMMON">
+      <UniqueIdentifier>{8723ae7a-d35b-4028-b4fe-95803095c356}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <QtRcc Include="Fabricatable90Popup.qrc">
@@ -90,6 +93,9 @@
     </ClCompile>
     <ClCompile Include="JQOGLWidget.cpp">
       <Filter>JQt\Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="COMMON\tmarchingcubes.cpp">
+      <Filter>COMMON</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -143,6 +149,36 @@
     </ClInclude>
     <ClInclude Include="T_Rect3D.h">
       <Filter>Header Files\Structs</Filter>
+    </ClInclude>
+    <ClInclude Include="COMMON\jcsg.h">
+      <Filter>COMMON</Filter>
+    </ClInclude>
+    <ClInclude Include="COMMON\jdraw.h">
+      <Filter>COMMON</Filter>
+    </ClInclude>
+    <ClInclude Include="COMMON\jmath.h">
+      <Filter>COMMON</Filter>
+    </ClInclude>
+    <ClInclude Include="COMMON\jmesh.h">
+      <Filter>COMMON</Filter>
+    </ClInclude>
+    <ClInclude Include="COMMON\jutil.h">
+      <Filter>COMMON</Filter>
+    </ClInclude>
+    <ClInclude Include="COMMON\OglForQt.h">
+      <Filter>COMMON</Filter>
+    </ClInclude>
+    <ClInclude Include="COMMON\tmarchingcubes.h">
+      <Filter>COMMON</Filter>
+    </ClInclude>
+    <ClInclude Include="COMMON\tmath.h">
+      <Filter>COMMON</Filter>
+    </ClInclude>
+    <ClInclude Include="COMMON\tmesh.h">
+      <Filter>COMMON</Filter>
+    </ClInclude>
+    <ClInclude Include="COMMON\tqueue.h">
+      <Filter>COMMON</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

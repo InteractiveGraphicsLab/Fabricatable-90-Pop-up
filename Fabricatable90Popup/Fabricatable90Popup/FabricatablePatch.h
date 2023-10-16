@@ -29,6 +29,7 @@
 #include "T_ConvertProperties.h"
 #include "T_Fold.h"
 #include "T_FaceCoordSystem.h"
+#include "T_Rect3D.h"
 
 
 class FabricatablePatch
@@ -46,6 +47,8 @@ public:
   bool Mount() const { return mount_face_; }
   bool LoadedMesh() const { return loaded_mesh_; }
   void LoadedMesh(bool loaded_mesh) { loaded_mesh_ = loaded_mesh; }
+
+  JMesh::Mesh InflatedPatch() const { return inflated_plane_; }
 
 
 public:
@@ -78,7 +81,7 @@ public:
 
 
 public:
-  void CutPlane
+  void CutPatch
   (
     const JMesh::Mesh& mesh,
     const std::vector<EVec3d>& rect,
@@ -88,7 +91,6 @@ public:
 
   void GenerateInflatedPatch
   (
-    JMesh::Mesh& outlines,
     const std::vector<EVec3d> rect,
     const FaceCoordSystem& face_system,
     const EVec3d& depend_org,
@@ -100,6 +102,7 @@ public:
     const JMesh::Mesh& outlines,
     const FaceCoordSystem& face_system,
     const EVec3d& depend_org,
+    const std::vector<EVec3d>& rect,
     const ConvertProperties& cvt_props
   );
 
@@ -121,12 +124,12 @@ public:
 
 
 private:
-  JMesh::Mesh InfatePlane
+  JMesh::Mesh InfatePatch
   (
-   const std::vector<EVec3d> rect,
-   const FaceCoordSystem& face_system,
-   const EVec3d& depend_org,
-   const ConvertProperties& cvt_props
+    const std::vector<EVec3d> rect,
+    const FaceCoordSystem& face_system,
+    const EVec3d& depend_org,
+    const ConvertProperties& cvt_props
   );
 
 
@@ -144,14 +147,14 @@ private:
   bool mount_face_;
   bool loaded_mesh_;
 
-  bool skip_;
-
   JMesh::Mesh rel_plane_;
   JMesh::Mesh rel_original_plane_;
-  JMesh::Mesh rel_fill_plane_;
-  JMesh::Mesh rel_original_fill_plane_;
+
   JMesh::Mesh inflated_plane_;
+  cv::Mat projected_img_;
+
   JMesh::Mesh rel_outside_;
+
   JMesh::Mesh rel_patch_;
 };
 

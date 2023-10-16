@@ -24,6 +24,7 @@ using std::vector;
 using std::pair;
 using std::tuple;
 using std::queue;
+using std::stack;
 
 
 Popups* Popups::GetInstance()
@@ -40,12 +41,12 @@ void Popups::Draw2D() const
 
   while (!que.empty())
   {
-    Component* mech = que.front();
+    Component* comp = que.front();
     que.pop();
 
-    mech->Draw2D(angle_);
+    comp->Draw2D(angle_);
 
-    for (vector<Component*> children : mech->Children())
+    for (vector<Component*> children : comp->Children())
     {
       for (Component* child : children)
         que.push(child);
@@ -61,15 +62,15 @@ void Popups::Draw2D(const DeleteProperties& delete_props, const EVec3f& highligh
 
   while (!que.empty())
   {
-    Component* mech = que.front();
+    Component* comp = que.front();
     que.pop();
 
-    if (mech->Id() == delete_props.delete_mech->Id())
-      mech->Draw2D(angle_, highlight);
+    if (comp->Id() == delete_props.delete_comp->Id())
+      comp->Draw2D(angle_, highlight);
     else
-      mech->Draw2D(angle_);
+      comp->Draw2D(angle_);
 
-    for (vector<Component*> children : mech->Children())
+    for (vector<Component*> children : comp->Children())
     {
       for (Component* child : children)
         que.push(child);
@@ -80,7 +81,7 @@ void Popups::Draw2D(const DeleteProperties& delete_props, const EVec3f& highligh
 
 void Popups::Draw2D(const DeformProperties& deform_props, const EVec3f& highlight) const
 {
-  DeleteProperties props = { deform_props.deform_mech,
+  DeleteProperties props = { deform_props.deform_comp,
     deform_props.parent, deform_props.grand_parent, deform_props.fold_type };
 
   Draw2D(props, highlight);
@@ -94,12 +95,12 @@ void Popups::Draw3D() const
 
   while (!que.empty())
   {
-    Component* mech = que.front();
+    Component* comp = que.front();
     que.pop();
 
-    mech->Draw3D(angle_, cvt_props_);
+    comp->Draw3D(angle_, cvt_props_);
 
-    for (vector<Component*> children : mech->Children())
+    for (vector<Component*> children : comp->Children())
     {
       for (Component* child : children)
         que.push(child);
@@ -115,7 +116,7 @@ void Popups::DrawMesh(bool draw_mesh_plane) const
 }
 
 
-void Popups::UpdateOAMech(double angle)
+void Popups::UpdateComponent(double angle)
 {
   angle_ = angle;
 
@@ -125,22 +126,22 @@ void Popups::UpdateOAMech(double angle)
 
   while (!que.empty())
   {
-    Component* mech = que.front().first;
+    Component* comp = que.front().first;
     Fold depend_fold = que.front().second;
     que.pop();
 
-    mech->Update(depend_fold, angle_);
+    comp->Update(depend_fold, angle_);
 
-    for (int i = 0; i < mech->Children().size(); i++)
+    for (int i = 0; i < comp->Children().size(); i++)
     {
-      for (int j = 0; j < mech->Children(i).size(); j++)
-        que.push({ mech->Child(i, j), mech->FoldEdge(i) });
+      for (int j = 0; j < comp->Children(i).size(); j++)
+        que.push({ comp->Child(i, j), comp->FoldEdge(i) });
     }
   }
 }
 
 
-void Popups::AddOAMech(const PlaceProperties& place_props)
+void Popups::AddComponent(const PlaceProperties& place_props)
 {
   const EVec2d scale = EVec2d(0.8, 0.35);
   Fold place_fold = place_props.parent->FoldEdge(place_props.fold_type);
@@ -152,40 +153,40 @@ void Popups::AddOAMech(const PlaceProperties& place_props)
   Component* child = new Component(place_fold, scale);
   place_props.parent->AddChild(place_props.fold_type, child);
 
-  TrimOAMech();
+  TrimComponent();
 }
 
 
-void Popups::DeleteOAMech(const DeleteProperties& delete_props)
+void Popups::DeleteComponent(const DeleteProperties& delete_props)
 {
-  delete_props.parent->DeleteChild(delete_props.fold_type, delete_props.delete_mech->Id());
+  delete_props.parent->DeleteChild(delete_props.fold_type, delete_props.delete_comp->Id());
 
   queue<Component*> que;
-  que.push(delete_props.delete_mech);
+  que.push(delete_props.delete_comp);
 
   while (!que.empty())
   {
-    Component* mech = que.front();
+    Component* comp = que.front();
     que.pop();
 
-    for (vector<Component*> children : mech->Children())
+    for (vector<Component*> children : comp->Children())
     {
       for (Component* child : children)
         que.push(child);
     }
 
-    delete mech;
+    delete comp;
   }
 
-  TrimOAMech();
+  TrimComponent();
 }
 
 
-double Popups::DeformOAMech(const DeformProperties& deform_props, double move_len)
+double Popups::DeformComponent(const DeformProperties& deform_props, double move_len)
 {
-  Fold prev_v_fold = deform_props.deform_mech->FoldEdge(E_FOLD_TYPE::VTYPE);
-  Fold prev_h_fold = deform_props.deform_mech->FoldEdge(E_FOLD_TYPE::HTYPE);
-  move_len = deform_props.deform_mech->DeformOAFace(deform_props.handle, move_len, cvt_props_);
+  Fold prev_v_fold = deform_props.deform_comp->FoldEdge(E_FOLD_TYPE::VTYPE);
+  Fold prev_h_fold = deform_props.deform_comp->FoldEdge(E_FOLD_TYPE::HTYPE);
+  move_len = deform_props.deform_comp->DeformPatch(deform_props.handle, move_len, cvt_props_);
 
   return move_len;
 }
@@ -198,13 +199,13 @@ bool Popups::CheckError()
 
   while (!que.empty())
   {
-    Component* mech = que.front();
+    Component* comp = que.front();
     que.pop();
 
-    if (mech->Err())
+    if (comp->Err())
       return true;
 
-    for (vector<Component*> children : mech->Children())
+    for (vector<Component*> children : comp->Children())
     {
       for (Component* child : children)
         que.push(child);
@@ -222,12 +223,12 @@ void Popups::FillPlane()
 
   while (!que.empty())
   {
-    Component* mech = que.front();
+    Component* comp = que.front();
     que.pop();
 
-    mech->FillPlane(cvt_props_);
+    comp->FillPlane(cvt_props_);
 
-    for (vector<Component*> children : mech->Children())
+    for (vector<Component*> children : comp->Children())
     {
       for (Component* child : children)
         que.push(child);
@@ -236,7 +237,7 @@ void Popups::FillPlane()
 }
 
 
-void Popups::ConvertPrintableOAMech()
+void Popups::ConvertComponent()
 {
   queue<pair<Component*, Fold>> que;
   Fold default_fold = { E_FOLD_TYPE::DEFAULT, EVec2d::Zero(), EVec3d::Zero(), EVec3d::Zero(), 0.0, 0.0, 0.0 };
@@ -244,78 +245,95 @@ void Popups::ConvertPrintableOAMech()
 
   while (!que.empty())
   {
-    Component* mech = que.front().first;
+    Component* comp = que.front().first;
     Fold depend_fold = que.front().second;
     que.pop();
 
-    mech->CutPrintableOAFace(mesh_, depend_fold, cvt_props_);
+    comp->CutPrintableOAFace(mesh_, depend_fold, cvt_props_);
 
-    for (int i = 0; i < mech->Children().size(); i++)
+    for (int i = 0; i < comp->Children().size(); i++)
     {
-      for (int j = 0; j < mech->Children(i).size(); j++)
-        que.push({ mech->Child(i, j), mech->FoldEdge(i) });
+      for (int j = 0; j < comp->Children(i).size(); j++)
+        que.push({ comp->Child(i, j), comp->FoldEdge(i) });
     }
   }
 }
 
 
-static JMesh::Mesh sGenerateClipPlane(Component* parent, Component* mech, const E_FACE_TYPE& face_type, const ConvertProperties& cvt_props)
+static JMesh::Mesh sGenerateOutline(Component* comp, const E_FACE_TYPE& type, const ConvertProperties& cvt_props)
 {
-  JMesh::Mesh clip_plane = JMesh::Mesh();
 
-  int i = (mech->Id() != 0) ? (static_cast<int>(face_type)) : (static_cast<int>(E_FOLD_TYPE::GTYPE));
+  int i = (comp->Id() != 0) ? (static_cast<int>(type)) : (static_cast<int>(E_FOLD_TYPE::GTYPE));
 
-  for (int j = 0; j < (mech->Children(i)).size(); j++)
+  queue<Component*> que;
+  for (int j = 0; j < (comp->Children(i)).size(); j++)
+    que.push(comp->Child(i, j));
+
+  JMesh::Mesh outlines = JMesh::Mesh();
+  while (!que.empty())
   {
-    queue<Component*> que;
-    que.push(mech->Child(i, j));
+    Component* child = que.front();
+    que.pop();
 
-    while (!que.empty())
+    outlines = JCSG::Union(child->InflatedPatch(), outlines);
+    for (vector<Component*> grand_children : child->Children())
     {
-      Component* child = que.front();
-      que.pop();
-
-      child->GenerateInflatedPatch(clip_plane, cvt_props);
-
-      for (vector<Component*> gchildren : child->Children())
-      {
-        for (Component* gchild : gchildren)
-          que.push(gchild);
-      }
+      for (Component* grand_child : grand_children)
+        que.push(grand_child);
     }
   }
 
-  return clip_plane;
+  return outlines;
 }
 
 
 void Popups::TrimOutlines()
 {
-  queue<tuple<Component*, Component*, E_FACE_TYPE>> que;
-  que.push({ root_, root_, E_FACE_TYPE::VTYPE });
-  que.push({ root_, root_, E_FACE_TYPE::HTYPE });
+  queue<Component*> que;
+  stack<Component*> stk;
+  que.push(root_);
 
   while (!que.empty())
   {
-    Component* mech = std::get<0>(que.front());
-    Component* parent = std::get<1>(que.front());
-    E_FACE_TYPE type = std::get<2>(que.front());
+    Component* comp = que.front();
     que.pop();
 
-    JMesh::Mesh clip_plane = sGenerateClipPlane(parent, mech, type, cvt_props_);
-    mech->TrimOutlines(type, clip_plane, cvt_props_);
+    if (comp->IsExistChilren())
+    {
+      stk.push(comp);
+    }
+    else
+    {
+      for (int i = 0; i < static_cast<int>(E_FACE_TYPE::NUM_OF_TYPES); i++)
+      {
+        E_FACE_TYPE type = static_cast<E_FACE_TYPE>(i);
+        JMesh::Mesh outlines = JMesh::Mesh();
+        comp->TrimOutlines(type, outlines, cvt_props_);
+      }
 
-    if (type == E_FACE_TYPE::VTYPE)
-      continue;
+      comp->GenerateInflatedPatch(cvt_props_);
+    }
 
-    for (vector<Component*> children : mech->Children())
+    for (vector<Component*> children : comp->Children())
     {
       for (Component* child : children)
-      {
-        que.push({ child, mech, E_FACE_TYPE::VTYPE });
-        que.push({ child, mech, E_FACE_TYPE::HTYPE });
-      }
+        que.push(child);
     }
+  }
+
+  while (!stk.empty())
+  {
+    Component* comp = stk.top();
+    stk.pop();
+
+    for (int i = 0; i < static_cast<int>(E_FACE_TYPE::NUM_OF_TYPES); i++)
+    {
+      E_FACE_TYPE type = static_cast<E_FACE_TYPE>(i);
+      JMesh::Mesh outlines = sGenerateOutline(comp, type, cvt_props_);
+      comp->TrimOutlines(type, outlines, cvt_props_);
+    }
+
+    comp->GenerateInflatedPatch(cvt_props_);
   }
 }
 
@@ -325,28 +343,27 @@ static vector<Component*> sCollectMech(Component* root)
   queue<Component*> que;
   que.push(root);
 
-  vector<Component*> mech_list(0);
+  vector<Component*> comp_list(0);
   while (!que.empty())
   {
-    Component* mech = que.front();
+    Component* comp = que.front();
     que.pop();
 
-    mech_list.push_back(mech);
+    comp_list.push_back(comp);
 
-    for (int i = 0; i < mech->Children().size(); i++)
+    for (int i = 0; i < comp->Children().size(); i++)
     {
-      for (int j = 0; j < mech->Children(i).size(); j++)
-        que.push(mech->Child(i, j));
+      for (int j = 0; j < comp->Children(i).size(); j++)
+        que.push(comp->Child(i, j));
     }
   }
 
-  return mech_list;
+  return comp_list;
 }
 
-
-static vector<Component*> sSortMech(const vector<Component*> mech_list, const E_FACE_TYPE& type)
+static vector<Component*> sSortMech(const vector<Component*> comp_list, const E_FACE_TYPE& type)
 {
-  vector<Component*> sort_list = mech_list;
+  vector<Component*> sort_list = comp_list;
   int dim = (type == E_FACE_TYPE::HTYPE) ? 1 : 2;
   for (int k = 1; k < sort_list.size(); ++k)
   {
@@ -367,12 +384,12 @@ static vector<Component*> sSortMech(const vector<Component*> mech_list, const E_
 
 bool Popups::SegmentSpace()
 {
-  UpdateOAMech(J_PI / 2.0);
+  UpdateComponent(J_PI / 2.0);
 
-  vector<Component*> mech_list = sCollectMech(root_);
+  vector<Component*> comp_list = sCollectMech(root_);
 
-  vector<Component*> v_sort_list = sSortMech(mech_list, E_FACE_TYPE::VTYPE);
-  vector<Component*> h_sort_list = sSortMech(mech_list, E_FACE_TYPE::HTYPE);
+  vector<Component*> v_sort_list = sSortMech(comp_list, E_FACE_TYPE::VTYPE);
+  vector<Component*> h_sort_list = sSortMech(comp_list, E_FACE_TYPE::HTYPE);
 
   Fold root_fold = root_->FoldEdge(E_FOLD_TYPE::GTYPE);
   EVec3d max_pos = EVec3d(root_fold.u, root_fold.v, root_fold.w);
@@ -410,12 +427,12 @@ JMesh::Mesh Popups::ExportMesh()
 
   while (!que.empty())
   {
-    Component* mech = que.front();
+    Component* comp = que.front();
     que.pop();
 
-    mech->AssembleOA(oa, cvt_props_);
+    comp->AssembleOA(oa, cvt_props_);
 
-    for (vector<Component*> children : mech->Children())
+    for (vector<Component*> children : comp->Children())
     {
       for (Component* child : children)
         que.push(child);
@@ -433,19 +450,19 @@ void Popups::ResetPatch()
 
   while (!que.empty())
   {
-    Component* mech = que.front();
+    Component* comp = que.front();
     que.pop();
 
-    mech->ResetPatch();
+    comp->ResetPatch();
 
-    for (vector<Component*> children : mech->Children())
+    for (vector<Component*> children : comp->Children())
     {
       for (Component* child : children)
         que.push(child);
     }
   }
 
-  TrimOAMech();
+  TrimComponent();
 }
 
 
@@ -456,12 +473,12 @@ void Popups::ResetMeshs()
 
   while (!que.empty())
   {
-    Component* mech = que.front();
+    Component* comp = que.front();
     que.pop();
 
-    mech->ResetMeshs();
+    comp->ResetMeshs();
 
-    for (vector<Component*> children : mech->Children())
+    for (vector<Component*> children : comp->Children())
     {
       for (Component* child : children)
         que.push(child);
@@ -486,12 +503,11 @@ static struct DataProps
   double h_w = -1.0;
 };
 
-
 void Popups::LoadData(const vector<std::string>& data)
 {
   vector<Component*> root_children = root_->Children(E_FOLD_TYPE::GTYPE);
   for (Component* child : root_children)
-    DeleteOAMech({ child, root_, nullptr, E_FOLD_TYPE::GTYPE });
+    DeleteComponent({ child, root_, nullptr, E_FOLD_TYPE::GTYPE });
 
   vector<DataProps> data_props(data.size() - 1);
 
@@ -532,19 +548,19 @@ void Popups::LoadData(const vector<std::string>& data)
     }
   }
 
-  vector<Component*> mechs;
-  mechs.reserve(data.size());
-  mechs.push_back(root_);
+  vector<Component*> comps;
+  comps.reserve(data.size());
+  comps.push_back(root_);
   for (int i = 0; i < data_props.size(); ++i)
   {
     Component* parent = nullptr;
     Fold depend_fold;
-    for (int j = 0; j < mechs.size(); ++j)
+    for (int j = 0; j < comps.size(); ++j)
     {
-      if (data_props[i].parent_id == mechs[j]->Id())
+      if (data_props[i].parent_id == comps[j]->Id())
       {
-        parent = mechs[j];
-        depend_fold = mechs[j]->FoldEdge(data_props[i].depend);
+        parent = comps[j];
+        depend_fold = comps[j]->FoldEdge(data_props[i].depend);
         break;
       }
     }
@@ -555,12 +571,12 @@ void Popups::LoadData(const vector<std::string>& data)
       {E_FOLD_TYPE::HTYPE, data_props[i].h_rel_org, JUtil::ErrEVec3d(), JUtil::ErrEVec3d(), data_props[i].h_u, data_props[i].h_v, data_props[i].h_w}
     };
 
-    Component* mech = new Component(data_props[i].id, depend_fold, folds);
-    parent->AddChild(data_props[i].depend, mech);
-    mechs.push_back(mech);
+    Component* comp = new Component(data_props[i].id, depend_fold, folds);
+    parent->AddChild(data_props[i].depend, comp);
+    comps.push_back(comp);
   }
 
-  TrimOAMech();
+  TrimComponent();
 }
 
 
@@ -573,31 +589,31 @@ std::string Popups::SaveData()
 
   while (!que.empty())
   {
-    Component* mech = std::get<0>(que.front());
+    Component* comp = std::get<0>(que.front());
     Component* parent = std::get<1>(que.front());
     E_FOLD_TYPE depend = std::get<2>(que.front());
     que.pop();
 
     if (parent != nullptr)
     {
-      data += "id " + std::to_string(mech->Id()) + "/";
+      data += "id " + std::to_string(comp->Id()) + "/";
       data += "parent_id " + std::to_string(parent->Id()) + "/";
       data += "depend " + std::to_string(static_cast<int>(depend)) + "/";
-      data += "v rel_org " + JUtil::ToStringEVec2dNonBrackets(mech->FoldEdge(E_FOLD_TYPE::VTYPE).rel_org) + "/";
-      data += "v u " + std::to_string(mech->FoldEdge(E_FOLD_TYPE::VTYPE).u) + "/";
-      data += "v v " + std::to_string(mech->FoldEdge(E_FOLD_TYPE::VTYPE).v) + "/";
-      data += "v w " + std::to_string(mech->FoldEdge(E_FOLD_TYPE::VTYPE).w) + "/";
-      data += "h rel_org " + JUtil::ToStringEVec2dNonBrackets(mech->FoldEdge(E_FOLD_TYPE::HTYPE).rel_org) + "/";
-      data += "h u " + std::to_string(mech->FoldEdge(E_FOLD_TYPE::HTYPE).u) + "/";
-      data += "h v " + std::to_string(mech->FoldEdge(E_FOLD_TYPE::HTYPE).v) + "/";
-      data += "h w " + std::to_string(mech->FoldEdge(E_FOLD_TYPE::HTYPE).w) + "\n";
+      data += "v rel_org " + JUtil::ToStringEVec2dNonBrackets(comp->FoldEdge(E_FOLD_TYPE::VTYPE).rel_org) + "/";
+      data += "v u " + std::to_string(comp->FoldEdge(E_FOLD_TYPE::VTYPE).u) + "/";
+      data += "v v " + std::to_string(comp->FoldEdge(E_FOLD_TYPE::VTYPE).v) + "/";
+      data += "v w " + std::to_string(comp->FoldEdge(E_FOLD_TYPE::VTYPE).w) + "/";
+      data += "h rel_org " + JUtil::ToStringEVec2dNonBrackets(comp->FoldEdge(E_FOLD_TYPE::HTYPE).rel_org) + "/";
+      data += "h u " + std::to_string(comp->FoldEdge(E_FOLD_TYPE::HTYPE).u) + "/";
+      data += "h v " + std::to_string(comp->FoldEdge(E_FOLD_TYPE::HTYPE).v) + "/";
+      data += "h w " + std::to_string(comp->FoldEdge(E_FOLD_TYPE::HTYPE).w) + "\n";
     }
 
-    for (int i = 0; i < mech->Children().size(); ++i)
+    for (int i = 0; i < comp->Children().size(); ++i)
     {
       E_FOLD_TYPE depend = static_cast<E_FOLD_TYPE>(i);
-      for (int j = 0; j < mech->Children(i).size(); ++j)
-        que.push({ mech->Child(i, j), mech, depend });
+      for (int j = 0; j < comp->Children(i).size(); ++j)
+        que.push({ comp->Child(i, j), comp, depend });
     }
   }
 
@@ -607,13 +623,12 @@ std::string Popups::SaveData()
 
 static struct HitProperties
 {
-  Component* mech = nullptr;
+  Component* comp = nullptr;
   Component* parent = nullptr;
   Component* grand_parent = nullptr;
   E_FOLD_TYPE fold_type = E_FOLD_TYPE::DEFAULT;
   double dist = DBL_MAX;
 };
-
 
 static Component* sGetGrandParent
 (
@@ -660,8 +675,8 @@ static void sPushOAMechanismTuple
 
 static void sUpdateHitProperties
 (
-  Component* mech,
-  const tuple<Component*, Component*, Component*>& mech_tuple,
+  Component* comp,
+  const tuple<Component*, Component*, Component*>& comp_tuple,
   const E_FOLD_TYPE& fold_type,
   double dist,
   HitProperties& hit_props
@@ -669,11 +684,11 @@ static void sUpdateHitProperties
 {
   if (dist < hit_props.dist)
   {
-    hit_props.mech = mech;
+    hit_props.comp = comp;
     hit_props.fold_type = fold_type;
     hit_props.dist = dist;
-    hit_props.parent = std::get<2>(mech_tuple);
-    hit_props.grand_parent = sGetGrandParent(fold_type, mech_tuple);
+    hit_props.parent = std::get<2>(comp_tuple);
+    hit_props.grand_parent = sGetGrandParent(fold_type, comp_tuple);
   }
 }
 
@@ -688,27 +703,27 @@ bool Popups::HitFoldEdge(const JUtil::Ray& ray, PlaceProperties& place_props) co
   EVec3d min_dist_end_pos = JUtil::ErrEVec3d();
   while (!que.empty())
   {
-    tuple<Component*, Component*, Component*> mech_tuple = que.front();
+    tuple<Component*, Component*, Component*> comp_tuple = que.front();
     que.pop();
 
     double dist = DBL_MAX;
     E_FOLD_TYPE fold_type = E_FOLD_TYPE::DEFAULT;
     EVec3d start_pos = JUtil::ErrEVec3d();
     EVec3d end_pos = JUtil::ErrEVec3d();
-    if (std::get<2>(mech_tuple)->HitFoldEdge(ray, place_props.radius, cvt_props_, dist, fold_type, start_pos, end_pos))
+    if (std::get<2>(comp_tuple)->HitFoldEdge(ray, place_props.radius, cvt_props_, dist, fold_type, start_pos, end_pos))
     {
-      sUpdateHitProperties(std::get<2>(mech_tuple), mech_tuple, fold_type, dist, hit_props);
+      sUpdateHitProperties(std::get<2>(comp_tuple), comp_tuple, fold_type, dist, hit_props);
       min_dist_start_pos = start_pos;
       min_dist_end_pos = end_pos;
     }
 
-    for (int i = 0; i < std::get<2>(mech_tuple)->Children().size(); i++)
-      sPushOAMechanismTuple(i, que, mech_tuple);
+    for (int i = 0; i < std::get<2>(comp_tuple)->Children().size(); i++)
+      sPushOAMechanismTuple(i, que, comp_tuple);
   }
 
-  if ((hit_props.mech != nullptr) && (hit_props.grand_parent != nullptr))
+  if ((hit_props.comp != nullptr) && (hit_props.grand_parent != nullptr))
   {
-    place_props.parent = hit_props.mech;
+    place_props.parent = hit_props.comp;
     place_props.grand_parent = hit_props.grand_parent;
     place_props.fold_type = hit_props.fold_type;
     place_props.start_pos = min_dist_start_pos;
@@ -725,7 +740,7 @@ bool Popups::HitFoldEdge(const JUtil::Ray& ray, PlaceProperties& place_props) co
 }
 
 
-bool Popups::HitOAMech(const JUtil::Ray& ray, DeleteProperties& delete_props) const
+bool Popups::HitComponent(const JUtil::Ray& ray, DeleteProperties& delete_props) const
 {
   queue<tuple<Component*, Component*, Component*>> que;
   que.push({ root_, root_, root_ });
@@ -733,26 +748,26 @@ bool Popups::HitOAMech(const JUtil::Ray& ray, DeleteProperties& delete_props) co
   HitProperties hit_props = { nullptr, nullptr, nullptr, E_FOLD_TYPE::DEFAULT, DBL_MAX };
   while (!que.empty())
   {
-    tuple<Component*, Component*, Component*> mech_tuple = que.front();
+    tuple<Component*, Component*, Component*> comp_tuple = que.front();
     que.pop();
 
-    for (int i = 0; i < std::get<2>(mech_tuple)->Children().size(); i++)
+    for (int i = 0; i < std::get<2>(comp_tuple)->Children().size(); i++)
     {
-      for (int j = 0; j < std::get<2>(mech_tuple)->Children(i).size(); j++)
+      for (int j = 0; j < std::get<2>(comp_tuple)->Children(i).size(); j++)
       {
-        sPushOAMechanismTuple(i, que, mech_tuple);
+        sPushOAMechanismTuple(i, que, comp_tuple);
 
-        Component* child = std::get<2>(mech_tuple)->Child(i, j);
+        Component* child = std::get<2>(comp_tuple)->Child(i, j);
         double dist = DBL_MAX;
         if (child->Hit(ray, dist))
-          sUpdateHitProperties(child, mech_tuple, static_cast<E_FOLD_TYPE>(i), dist, hit_props);
+          sUpdateHitProperties(child, comp_tuple, static_cast<E_FOLD_TYPE>(i), dist, hit_props);
       }
     }
   }
 
-  if ((hit_props.mech != nullptr) && (hit_props.parent != nullptr) && (hit_props.grand_parent != nullptr))
+  if ((hit_props.comp != nullptr) && (hit_props.parent != nullptr) && (hit_props.grand_parent != nullptr))
   {
-    delete_props = { hit_props.mech, hit_props.parent, hit_props.grand_parent, hit_props.fold_type };
+    delete_props = { hit_props.comp, hit_props.parent, hit_props.grand_parent, hit_props.fold_type };
     return true;
   }
 
@@ -761,24 +776,24 @@ bool Popups::HitOAMech(const JUtil::Ray& ray, DeleteProperties& delete_props) co
 }
 
 
-bool Popups::HitOAMech(const JUtil::Ray& ray, DeformProperties& deform_props) const
+bool Popups::HitComponent(const JUtil::Ray& ray, DeformProperties& deform_props) const
 {
   DeleteProperties props = { nullptr, nullptr, nullptr, E_FOLD_TYPE::DEFAULT };
 
-  if (HitOAMech(ray, props))
+  if (HitComponent(ray, props))
   {
-    deform_props.deform_mech = props.delete_mech;
+    deform_props.deform_comp = props.delete_comp;
     deform_props.parent = props.parent;
     deform_props.grand_parent = props.grand_parent;
     deform_props.fold_type = props.fold_type;
 
     deform_props.handles =
-      deform_props.deform_mech->GetHandles(deform_props.handle_size, deform_props.slice);
+      deform_props.deform_comp->GetHandles(deform_props.handle_size, deform_props.slice);
 
     return true;
   }
 
-  deform_props.deform_mech = nullptr;
+  deform_props.deform_comp = nullptr;
   deform_props.parent = nullptr;
   deform_props.grand_parent = nullptr;
   deform_props.fold_type = E_FOLD_TYPE::DEFAULT;
@@ -793,30 +808,30 @@ void Popups::IsConnect()
 
   while (!que.empty())
   {
-    Component* mech = std::get<0>(que.front());
+    Component* comp = std::get<0>(que.front());
     Rect3D parent_rect = std::get<1>(que.front());
     bool root_h_child = std::get<2>(que.front());
     que.pop();
 
-    if (mech->Id() != 0)
+    if (comp->Id() != 0)
     {
-      mech->IsConnect(parent_rect, cvt_props_);
+      comp->IsConnect(parent_rect, cvt_props_);
 
       if (!root_h_child)
       {
-        for (int i = 0; i < mech->Children().size(); i++)
+        for (int i = 0; i < comp->Children().size(); i++)
         {
-          for (Component* child : mech->Children(i))
-            que.push({ child, mech->Rect(i), false });
+          for (Component* child : comp->Children(i))
+            que.push({ child, comp->Rect(i), false });
         }
       }
     }
     else
     {
-      for (Component* child : mech->Children(E_FOLD_TYPE::GTYPE))
+      for (Component* child : comp->Children(E_FOLD_TYPE::GTYPE))
       {
-        que.push({ child, mech->Rect(E_FACE_TYPE::VTYPE), false });
-        que.push({ child, mech->Rect(E_FACE_TYPE::HTYPE), true });
+        que.push({ child, comp->Rect(E_FACE_TYPE::VTYPE), false });
+        que.push({ child, comp->Rect(E_FACE_TYPE::HTYPE), true });
       }
     }
   }
@@ -830,13 +845,13 @@ void Popups::IsMaximumSize()
 
   while (!que.empty())
   {
-    Component* mech = que.front();
+    Component* comp = que.front();
     que.pop();
 
-    if (mech->Id() != 0)
-      mech->IsMaximumSize(root_->FoldEdge(E_FOLD_TYPE::GTYPE));
+    if (comp->Id() != 0)
+      comp->IsMaximumSize(root_->FoldEdge(E_FOLD_TYPE::GTYPE));
 
-    for (vector<Component*> children : mech->Children())
+    for (vector<Component*> children : comp->Children())
     {
       for (Component* child : children)
         que.push(child);
@@ -852,12 +867,12 @@ void Popups::IsMinimumLength()
 
   while (!que.empty())
   {
-    Component* mech = que.front();
+    Component* comp = que.front();
     que.pop();
 
-    mech->IsMinimumLength(cvt_props_.nozzle_width);
+    comp->IsMinimumLength(cvt_props_.nozzle_width);
 
-    for (vector<Component*> children : mech->Children())
+    for (vector<Component*> children : comp->Children())
     {
       for (Component* child : children)
         que.push(child);
@@ -875,7 +890,7 @@ static queue<int> sSearchRoute(Component* root, int id)
 
   while (!stk.empty())
   {
-    Component* mech = stk.top().first;
+    Component* comp = stk.top().first;
     Component* parent = stk.top().second;
     stk.pop();
 
@@ -885,16 +900,16 @@ static queue<int> sSearchRoute(Component* root, int id)
         route_stk.pop();
     }
 
-    if (mech->Id() == id)
+    if (comp->Id() == id)
       break;
 
-    if (mech->IsExistChilren())
-      route_stk.push(mech->Id());
+    if (comp->IsExistChilren())
+      route_stk.push(comp->Id());
 
-    for (auto children : mech->Children())
+    for (auto children : comp->Children())
     {
       for (auto child : children)
-        stk.push({ child, mech });
+        stk.push({ child, comp });
     }
   }
 
@@ -916,30 +931,30 @@ static queue<int> sSearchRoute(Component* root, int id)
   return route;
 }
 
-static vector<Rect3D> sCalcChildRects(Component* root, Component* mech)
+static vector<Rect3D> sCalcChildRects(Component* root, Component* comp)
 {
   queue<pair<Component*, bool>> que;
   que.push({ root, false });
 
   vector<Rect3D> child_rects = vector<Rect3D>();
-  queue<int> route = sSearchRoute(root, mech->Id());
+  queue<int> route = sSearchRoute(root, comp->Id());
   while (!que.empty())
   {
-    Component* child_mech = que.front().first;
-    bool is_mech_child = que.front().second;
+    Component* child_comp = que.front().first;
+    bool is_comp_child = que.front().second;
     que.pop();
 
-    if (!is_mech_child)
+    if (!is_comp_child)
     {
-      if (child_mech->Id() == route.front())
+      if (child_comp->Id() == route.front())
         route.pop();
-      else if (mech->Id() != child_mech->Id())
-        child_rects.push_back(child_mech->ComponentRect());
+      else if (comp->Id() != child_comp->Id())
+        child_rects.push_back(child_comp->ComponentRect());
     }
 
-    for (vector<Component*> children : child_mech->Children())
+    for (vector<Component*> children : child_comp->Children())
     {
-      if (mech->Id() == child_mech->Id())
+      if (comp->Id() == child_comp->Id())
       {
         for (Component* child : children)
           que.push({ child, true });
@@ -955,11 +970,11 @@ static vector<Rect3D> sCalcChildRects(Component* root, Component* mech)
   return child_rects;
 }
 
-static vector<Rect3D> sChildrenRects(Component* mech)
+static vector<Rect3D> sChildrenRects(Component* comp)
 {
   vector<Rect3D> child_rects(0);
 
-  for (vector<Component*> children : mech->Children())
+  for (vector<Component*> children : comp->Children())
   {
     for (Component* child : children)
     {
@@ -974,9 +989,9 @@ static vector<Rect3D> sChildrenRects(Component* mech)
 }
 
 
-void Popups::TrimOAMech()
+void Popups::TrimComponent()
 {
-  UpdateOAMech(J_PI);
+  UpdateComponent(J_PI);
   IsConnect();
   IsMaximumSize();
   IsMinimumLength();
@@ -986,38 +1001,37 @@ void Popups::TrimOAMech()
 
   while (!que.empty())
   {
-    Component* mech = que.front().first;
+    Component* comp = que.front().first;
     int depth = que.front().second;
     que.pop();
 
-    vector<Rect3D> rects = sCalcChildRects(root_, mech);
-    vector<Rect3D> child_rects = sChildrenRects(mech);
+    vector<Rect3D> rects = sCalcChildRects(root_, comp);
+    vector<Rect3D> child_rects = sChildrenRects(comp);
 
-    mech->TrimOAFace(rects, child_rects, cvt_props_);
+    comp->TrimPatch(rects, child_rects, cvt_props_);
 
-    for (vector<Component*> children : mech->Children())
+    for (vector<Component*> children : comp->Children())
     {
       for (Component* child : children)
         que.push({ child, depth + 1 });
     }
   }
 
-  UpdateOAMech(J_PI / 2.0);
+  UpdateComponent(J_PI / 2.0);
 }
 
 
 Popups::Popups()
 {
   // change base component size
-  // root_ = new OAMechanism(width, height, depth);
+  // root_ = new Component(width, height, depth);
 
   root_ = new Component(10.0000000, 7.3483635, 4.4757919); // bunny.stl
-  //root_ = new OAMechanism(14.0000000, 8.6240334, 3.9803352); // dragon.stl
 
   mesh_ = JMesh::Mesh();
   angle_ = J_PI / 2.0;
   cvt_props_ = { 0.2, 0.05, 0.05, 0.02, 0.04 };
-  TrimOAMech();
-  UpdateOAMech(J_PI / 2.0);
+  TrimComponent();
+  UpdateComponent(J_PI / 2.0);
 }
 

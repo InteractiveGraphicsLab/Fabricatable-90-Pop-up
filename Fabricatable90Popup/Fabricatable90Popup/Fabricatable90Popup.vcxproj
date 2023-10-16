@@ -105,9 +105,20 @@
     </QtMoc>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="COMMON\tmarchingcubes.cpp" />
     <ClCompile Include="JQDoubleSlider.cpp" />
     <ClCompile Include="JQOGLWidget.cpp" />
     <ClCompile Include="ToolCore.cpp" />
+    <ClInclude Include="COMMON\jcsg.h" />
+    <ClInclude Include="COMMON\jdraw.h" />
+    <ClInclude Include="COMMON\jmath.h" />
+    <ClInclude Include="COMMON\jmesh.h" />
+    <ClInclude Include="COMMON\jutil.h" />
+    <ClInclude Include="COMMON\OglForQt.h" />
+    <ClInclude Include="COMMON\tmarchingcubes.h" />
+    <ClInclude Include="COMMON\tmath.h" />
+    <ClInclude Include="COMMON\tmesh.h" />
+    <ClInclude Include="COMMON\tqueue.h" />
     <ClInclude Include="T_ConvertProperties.h" />
     <ClInclude Include="T_DeformPropterties.h" />
     <ClInclude Include="T_DeleteProperties.h" />

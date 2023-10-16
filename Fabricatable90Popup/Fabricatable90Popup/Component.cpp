@@ -25,7 +25,7 @@ using std::vector;
 using std::pair;
 
 
-int Component::s_mech_id_generator_ = 0;
+int Component::s_comp_id_generator_ = 0;
 bool Component::s_trimmed_ = false;
 
 
@@ -388,7 +388,6 @@ void Component::IsMaximumSize(const Fold& root_fold)
 
 void Component::IsMinimumLength(double nozzle_width)
 {
-
   if (err_)
     return;
 
@@ -510,7 +509,7 @@ static bool sIsOverlapping(const Rect3D& rect, vector<Rect3D>& other_rects, cons
 }
 
 
-void Component::TrimOAFace
+void Component::TrimPatch
 (
   const vector<Rect3D>& other_rects,
   const vector<Rect3D>& child_rects,
@@ -574,16 +573,16 @@ static void sSortChildren(vector<Component*>& children)
 }
 
 
-void Component::AddChild(const E_FOLD_TYPE& fold_type, Component* mech)
+void Component::AddChild(const E_FOLD_TYPE& fold_type, Component* comp)
 {
   if (sCast(fold_type) <= sCast(E_FOLD_TYPE::DEFAULT) ||
       sCast(fold_type) >= sCast(E_FOLD_TYPE::NUM_OF_TYPES))
   {
     std::cout << "E_FOLD_TYPE Error: OAMechanism::AddChild(E_FOLD_EDGE_TYPE "
-      << sCast(fold_type) << ", OAMechanism *" << mech->id_ << ")\n";
+      << sCast(fold_type) << ", OAMechanism *" << comp->id_ << ")\n";
   }
 
-  children_[sCast(fold_type)].push_back(mech);
+  children_[sCast(fold_type)].push_back(comp);
   sSortChildren(children_[sCast(fold_type)]);
 }
 
@@ -670,7 +669,7 @@ static void sMoveRight(vector<Fold>& folds, double move_len, double nozzle_width
 }
 
 
-double Component::DeformOAFace(const E_DEFORM_HANDLE& handle, double move_len, const ConvertProperties& cvt_props)
+double Component::DeformPatch(const E_DEFORM_HANDLE& handle, double move_len, const ConvertProperties& cvt_props)
 {
   if (trimmed_)
   {
@@ -756,12 +755,23 @@ void Component::CutPrintableOAFace(const JMesh::Mesh& parent_mesh, const Fold& d
 }
 
 
-void Component::GenerateInflatedPatch(JMesh::Mesh& clip_plane, const ConvertProperties& cvt_props)
+void Component::GenerateInflatedPatch(const ConvertProperties& cvt_props)
 {
   if (id_ != 0)
   {
     for (int i = 0; i < faces_.size(); i++)
-      faces_[i].GenerateInflatedPatch(clip_plane, rects_[i], folds_[i].org, cvt_props);
+      faces_[i].GenerateInflatedPatch(rects_[i], folds_[i].org, cvt_props);
+  }
+}
+
+
+JMesh::Mesh Component::InflatedPatch() const
+{
+  if (id_ != 0)
+  {
+    JMesh::Mesh v_patch = faces_[static_cast<int>(E_FACE_TYPE::VTYPE)].InflatedPatch();
+    JMesh::Mesh h_patch = faces_[static_cast<int>(E_FACE_TYPE::HTYPE)].InflatedPatch();
+    return JCSG::Union(v_patch, h_patch);
   }
 }
 
@@ -769,16 +779,22 @@ void Component::GenerateInflatedPatch(JMesh::Mesh& clip_plane, const ConvertProp
 void Component::TrimOutlines
 (
   const E_FACE_TYPE& type,
-  const JMesh::Mesh& clip_plane,
+  const JMesh::Mesh& outlines,
   const ConvertProperties& cvt_props
 )
 {
-  std::cout << "" << id_ << ": ";
-
   if (id_ == 0)
-    faces_[sCast(type)].TrimOutlines(clip_plane, folds_[sCast(E_FOLD_TYPE::GTYPE)].org, cvt_props);
+  {
+    std::cout << "" << id_ << ": ";
+    faces_[sCast(type)].TrimOutlines(outlines, folds_[sCast(E_FOLD_TYPE::GTYPE)].org, rects_[sCast(type)].p, cvt_props);
+  }
   else
-    faces_[sCast(type)].TrimOutlines(clip_plane, folds_[sCast(type)].org, cvt_props);
+  {
+    if (outlines.Exist())
+      std::cout << "" << id_ << ": ";
+
+    faces_[sCast(type)].TrimOutlines(outlines, folds_[sCast(type)].org, rects_[sCast(type)].p, cvt_props);
+  }
 }
 
 

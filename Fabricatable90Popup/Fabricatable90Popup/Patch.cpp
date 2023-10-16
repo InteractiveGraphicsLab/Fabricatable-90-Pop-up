@@ -23,6 +23,7 @@
 
 using std::vector;
 using std::pair;
+using std::tuple;
 
 
 Patch::Patch()
@@ -30,7 +31,7 @@ Patch::Patch()
   type_ = E_FACE_TYPE::DEFAULT;
   rel_pattern_coords_ = vector<EVec2d>();
   idx_array_.resize(1, 1);
-  printable_state_ = FabricatablePatch();
+  fab_state_ = FabricatablePatch();
 }
 
 
@@ -38,7 +39,7 @@ Patch::Patch(const double width, const double height, const E_FACE_TYPE& face_ty
 {
   type_ = face_type;
   Initialize(width, height);
-  printable_state_ = FabricatablePatch(face_type, mount);
+  fab_state_ = FabricatablePatch(face_type, mount);
 }
 
 
@@ -46,7 +47,7 @@ Patch::Patch(const Fold& depend_fold, const E_FACE_TYPE& face_type, const EVec2d
 {
   type_ = face_type;
   Initialize(depend_fold, scale);
-  printable_state_ = FabricatablePatch(face_type, false);
+  fab_state_ = FabricatablePatch(face_type, false);
 }
 
 
@@ -55,7 +56,7 @@ Patch::Patch(const Patch& src)
   this->type_ = src.type_;
   this->rel_pattern_coords_ = src.rel_pattern_coords_;
   this->idx_array_ = src.idx_array_;
-  this->printable_state_ = src.printable_state_;
+  this->fab_state_ = src.fab_state_;
 }
 
 
@@ -64,7 +65,7 @@ void Patch::operator=(const Patch& src)
   this->type_ = src.type_;
   this->rel_pattern_coords_ = src.rel_pattern_coords_;
   this->idx_array_ = src.idx_array_;
-  this->printable_state_ = src.printable_state_;
+  this->fab_state_ = src.fab_state_;
 }
 
 
@@ -177,7 +178,7 @@ void Patch::Draw3D
   const ConvertProperties& cvt_props
 ) const
 {
-  printable_state_.Draw3D(Axis(type_, angle), depend_org, color);
+  fab_state_.Draw3D(Axis(type_, angle), depend_org, color);
 }
 
 
@@ -202,7 +203,7 @@ void Patch::FillPlane(const Rect3D& rect, const ConvertProperties& cvt_props)
   { org, x, y, z, sRectW(rect), cvt_props.thickness, sRectH(rect) };
   JMesh::Mesh rectangular = JMesh::RectangularMesh(rectangular_param);
 
-  if (!printable_state_.Mount())
+  if (!fab_state_.Mount())
   {
     int bevel_idx1 = (type_ == E_FACE_TYPE::VTYPE) ? 2 : 3;
     EVec3d pos1 = rectangular.V(bevel_idx1) +
@@ -215,7 +216,7 @@ void Patch::FillPlane(const Rect3D& rect, const ConvertProperties& cvt_props)
     rectangular.V(bevel_idx2, pos2);
   }
 
-  printable_state_.FillPlane(rectangular, Axis(type_, J_PI), rect.p[0], rect.p, cvt_props);
+  fab_state_.FillPlane(rectangular, Axis(type_, J_PI), rect.p[0], rect.p, cvt_props);
 }
 
 
@@ -227,19 +228,18 @@ void Patch::CutPrintableOAFace
   const ConvertProperties& cvt_props
 )
 {
-  printable_state_.CutPlane(parent_mesh, rect.p, depend_fold, cvt_props);
+  fab_state_.CutPatch(parent_mesh, rect.p, depend_fold, cvt_props);
 }
 
 
 void Patch::GenerateInflatedPatch
 (
-  JMesh::Mesh& clip_plane,
   const Rect3D& rect,
   const EVec3d& depend_org,
   const ConvertProperties& cvt_props
 )
 {
-  printable_state_.GenerateInflatedPatch(clip_plane, rect.p, Axis(type_, J_PI), depend_org, cvt_props);
+  fab_state_.GenerateInflatedPatch(rect.p, Axis(type_, J_PI), depend_org, cvt_props);
 }
 
 
@@ -247,10 +247,11 @@ void Patch::TrimOutlines
 (
   const JMesh::Mesh& clip_plane,
   const EVec3d& depend_org,
+  const vector<EVec3d>& rect,
   const ConvertProperties& cvt_props
 )
 {
-  printable_state_.TrimOutlines(clip_plane, Axis(type_, J_PI), depend_org, cvt_props);
+  fab_state_.TrimOutlines(clip_plane, Axis(type_, J_PI), depend_org, rect, cvt_props);
 }
 
 
@@ -264,25 +265,25 @@ bool Patch::SegmentSweepRegion
   const vector<pair<double, double>>& concave_fold_list
 )
 {
-  return printable_state_.SegmentSweepRegion(higher_space, mesh, rect.p, Axis(type_, J_PI / 2.0), cvt_props, max_pos, concave_fold_list);
+  return fab_state_.SegmentSweepRegion(higher_space, mesh, rect.p, Axis(type_, J_PI / 2.0), cvt_props, max_pos, concave_fold_list);
 }
 
 
 JMesh::Mesh Patch::Assemble(const EVec3d& depend_org) const
 {
-  return printable_state_.Assemble(Axis(type_, J_PI), depend_org);
+  return fab_state_.Assemble(Axis(type_, J_PI), depend_org);
 }
 
 
 void Patch::ResetPatch()
 {
-  printable_state_.Patch(JMesh::Mesh());
+  fab_state_.Patch(JMesh::Mesh());
 }
 
 
 void Patch::ResetMeshs()
 {
-  printable_state_.ResetMeshs();
+  fab_state_.ResetMeshs();
 }
 
 
@@ -392,7 +393,6 @@ void Patch::TrimChildren
 
   for (auto c_rect : child_rects)
   {
-    //EVec3d c_org = c_rect.p[3] + EVec3d(0.0, J_CSG_OFFSET, 0.0);
     EVec3d c_org = c_rect.p[3] + EVec3d(-cvt_props.gap, J_CSG_OFFSET, 0.0);
     JMesh::Rectangular c_rectangular_param =
     { c_org, x, y, z, sRectW(c_rect) + 2.0 * cvt_props.gap, (2.0 * J_CSG_OFFSET) + cvt_props.thickness, sRectH(c_rect) };
@@ -400,8 +400,8 @@ void Patch::TrimChildren
     rectangular = JCSG::Subtract(rectangular, c_rectangular);
   }
 
-  printable_state_.Plane(rectangular, Axis(type_, J_PI), rect.p[0], rect.p, cvt_props);
-  printable_state_.LoadedMesh(false);
+  fab_state_.Plane(rectangular, Axis(type_, J_PI), rect.p[0], rect.p, cvt_props);
+  fab_state_.LoadedMesh(false);
 
   rel_pattern_coords_ = vector<EVec2d>(rectangular.V().rows());
   vector<EVec3i> idx_array = vector<EVec3i>(0);
@@ -431,7 +431,6 @@ void Patch::TrimChildren
     for (int i = 0; i < rel_pattern_coords_.size(); i++)
       rel_pattern_coords_[i][1] = abs(rel_pattern_coords_[i][1] - sRectH(rect));
   }
-
 }
 
 

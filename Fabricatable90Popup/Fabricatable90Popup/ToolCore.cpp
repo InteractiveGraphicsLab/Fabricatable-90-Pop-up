@@ -40,7 +40,7 @@ void ToolCore::PressLeftMouseButton(OglForQt* ogl, const EVec2i& p)
   if (SelectedMech() && HitDeformHandle(ray))
   {
     prev_ray_ = JUtil::GetRay(*ogl, p);
-    Popups::GetInstance()->UpdateOAMech(JMath::Rad(90));
+    Popups::GetInstance()->UpdateComponent(JMath::Rad(90));
   }
   else
   {
@@ -74,24 +74,24 @@ void ToolCore::ReleaseLeftMouseButton(OglForQt* ogl, const EVec2i& p)
   {
   case E_EDIT_MODE::PLACEMENT:
     if (Placable())
-      Popups::GetInstance()->AddOAMech(place_props_);
-    Popups::GetInstance()->UpdateOAMech(JMath::Rad(90));
+      Popups::GetInstance()->AddComponent(place_props_);
+    Popups::GetInstance()->UpdateComponent(JMath::Rad(90));
     ogl->RedrawWindow();
     break;
 
   case E_EDIT_MODE::DELETION:
     if (Deletable())
-      Popups::GetInstance()->DeleteOAMech(delete_props_);
-    Popups::GetInstance()->UpdateOAMech(JMath::Rad(90));
+      Popups::GetInstance()->DeleteComponent(delete_props_);
+    Popups::GetInstance()->UpdateComponent(JMath::Rad(90));
     ogl->RedrawWindow();
     break;
 
   case E_EDIT_MODE::DEFORMATION:
-    if (Deformable() && Popups::GetInstance()->HitOAMech(ray, deform_props_))
+    if (Deformable() && Popups::GetInstance()->HitComponent(ray, deform_props_))
       ProgressDeformStep();
     else if (MovableHandle())
       ProgressDeformStep();
-    Popups::GetInstance()->UpdateOAMech(JMath::Rad(90));
+    Popups::GetInstance()->UpdateComponent(JMath::Rad(90));
     ogl->RedrawWindow();
     break;
 
@@ -131,20 +131,20 @@ void ToolCore::MoveMouse(OglForQt* ogl, const EVec2i& p)
     {
     case E_EDIT_MODE::PLACEMENT:
       Popups::GetInstance()->HitFoldEdge(ray, place_props_);
-      Popups::GetInstance()->UpdateOAMech(JMath::Rad(90));
+      Popups::GetInstance()->UpdateComponent(JMath::Rad(90));
       break;
 
     case E_EDIT_MODE::DELETION:
-      Popups::GetInstance()->HitOAMech(ray, delete_props_);
-      Popups::GetInstance()->UpdateOAMech(JMath::Rad(90));
+      Popups::GetInstance()->HitComponent(ray, delete_props_);
+      Popups::GetInstance()->UpdateComponent(JMath::Rad(90));
       break;
 
     case E_EDIT_MODE::DEFORMATION:
       if (Deformable())
-        Popups::GetInstance()->HitOAMech(ray, deform_props_);
+        Popups::GetInstance()->HitComponent(ray, deform_props_);
       else if (SelectedMech())
         HitDeformHandle(ray);
-      Popups::GetInstance()->UpdateOAMech(JMath::Rad(90));
+      Popups::GetInstance()->UpdateComponent(JMath::Rad(90));
       break;
 
     default:
@@ -161,10 +161,10 @@ void ToolCore::MoveMouse(OglForQt* ogl, const EVec2i& p)
     EVec3d move = temp_pos - prev_pos;
     int handle_id = static_cast<int>(deform_props_.handle);
     double move_len = move.dot(deform_props_.handles[handle_id].dir);
-    move_len = Popups::GetInstance()->DeformOAMech(deform_props_, move_len);
+    move_len = Popups::GetInstance()->DeformComponent(deform_props_, move_len);
     UpdateDeformHandle(move_len);
 
-    Popups::GetInstance()->UpdateOAMech(J_PI / 2.0);
+    Popups::GetInstance()->UpdateComponent(J_PI / 2.0);
     prev_ray_ = ray;
   }
   else
@@ -184,8 +184,6 @@ void ToolCore::DrawScene(OglForQt* ogl, const E_DRAW_MODE& draw_mode, bool draw_
   glLightfv(GL_LIGHT0, GL_DIFFUSE, EVec4f(0.8f, 0.8f, 0.8f, 1.0f).data());
   glLightfv(GL_LIGHT0, GL_POSITION, EVec4f(5.0f, 100.0f, 50.0f, 1.0f).data());
 
-  //glBlendFunc(GL_SRC_ALPHA, GL_SRC_ALPHA);
-
   if (draw_mode == E_DRAW_MODE::MODE_2D)
   {
     if (Placable())
@@ -200,7 +198,7 @@ void ToolCore::DrawScene(OglForQt* ogl, const E_DRAW_MODE& draw_mode, bool draw_
     }
     else if (Deformable())
     {
-      if (deform_props_.deform_mech != nullptr)
+      if (deform_props_.deform_comp != nullptr)
       {
         const EVec3f highlight = EVec3f(0.1f, 0.1f, 0.1f);
         Popups::GetInstance()->Draw2D(deform_props_, highlight);
@@ -227,13 +225,9 @@ void ToolCore::DrawScene(OglForQt* ogl, const E_DRAW_MODE& draw_mode, bool draw_
   else if (draw_mode == E_DRAW_MODE::MODE_3D)
   {
     Popups::GetInstance()->Draw3D();
-    //if (imported_mesh_ && !converted_)
-    //  OA::GetInstance()->DrawMesh(draw_mesh_plane);
+    if (imported_mesh_ && !converted_)
+      Popups::GetInstance()->DrawMesh(draw_mesh_plane);
   }
-
-  //std::cout << "ogl_.SetCam(EVec3f" << JUtil::ToStringEVec3f(ogl->GetCamPos()) << ",\n"
-  //          << "            EVec3f" << JUtil::ToStringEVec3f(ogl->GetCamCnt()) << ",\n"
-  //          << "            EVec3f" << JUtil::ToStringEVec3f(ogl->GetCamUp()) << ");" << std::endl;
 }
 
 
@@ -247,7 +241,7 @@ void ToolCore::EditMode(OglForQt* ogl, const E_EDIT_MODE& edit_mode)
 
   InitializeProps();
   edit_mode_ = edit_mode;
-  Popups::GetInstance()->UpdateOAMech(J_PI / 2.0);
+  Popups::GetInstance()->UpdateComponent(J_PI / 2.0);
   ogl->RedrawWindow();
   emit SetAngle90(90);
 }
@@ -257,7 +251,7 @@ void ToolCore::Simulate(OglForQt* ogl, int angle)
 {
   InitializeProps();
   edit_mode_ = E_EDIT_MODE::SIMULATE;
-  Popups::GetInstance()->UpdateOAMech(JMath::Rad(angle));
+  Popups::GetInstance()->UpdateComponent(JMath::Rad(angle));
   ogl->RedrawWindow();
 }
 
@@ -265,7 +259,7 @@ void ToolCore::Simulate(OglForQt* ogl, double angle)
 {
   InitializeProps();
   edit_mode_ = E_EDIT_MODE::SIMULATE;
-  Popups::GetInstance()->UpdateOAMech(angle);
+  Popups::GetInstance()->UpdateComponent(angle);
   ogl->RedrawWindow();
 }
 
@@ -311,15 +305,15 @@ void ToolCore::ExportMesh(OglForQt* ogl, const std::string& file_path)
   {
     InitializeProps();
     edit_mode_ = E_EDIT_MODE::EXPORT_MESH;
-    Popups::GetInstance()->UpdateOAMech(J_PI);
+    Popups::GetInstance()->UpdateComponent(J_PI);
 
     std::cout << "\n ----- Start Export Origamic Architecture -----\n\n";
-    JMesh::Mesh oa = Popups::GetInstance()->ExportMesh();
-    oa.Scale(EVec3d(10.0, 10.0, 10.0));
-    igl::writeSTL(file_path, oa.V(), oa.F());
+    JMesh::Mesh popups = Popups::GetInstance()->ExportMesh();
+    popups.Scale(EVec3d(10.0, 10.0, 10.0));
+    igl::writeSTL(file_path, popups.V(), popups.F());
     std::cout << "\n\n ----- Exported Origamic Architecture -----\n";
 
-    Popups::GetInstance()->UpdateOAMech(J_PI / 2.0);
+    Popups::GetInstance()->UpdateComponent(J_PI / 2.0);
   }
 
   edit_mode_ = E_EDIT_MODE::DEFAULT;
@@ -329,7 +323,7 @@ void ToolCore::ExportMesh(OglForQt* ogl, const std::string& file_path)
 
 void ToolCore::LoadData(OglForQt* ogl, const std::string& file_path)
 {
-  Popups::GetInstance()->UpdateOAMech(J_PI / 2.0);
+  Popups::GetInstance()->UpdateComponent(J_PI / 2.0);
 
   std::ifstream file(file_path);
   if (file.fail())
@@ -353,7 +347,7 @@ void ToolCore::LoadData(OglForQt* ogl, const std::string& file_path)
 
 void ToolCore::SaveData(OglForQt* ogl, const std::string& file_path)
 {
-  Popups::GetInstance()->UpdateOAMech(J_PI / 2.0);
+  Popups::GetInstance()->UpdateComponent(J_PI / 2.0);
 
   std::cout << "\n ----- Start Save Origamic Architecture -----\n\n";
   std::ofstream file;
@@ -374,34 +368,28 @@ void ToolCore::Convert(OglForQt* ogl)
   {
     converted_ = true;
 
-    Popups::GetInstance()->UpdateOAMech(JMath::Rad(180));
+    Popups::GetInstance()->UpdateComponent(JMath::Rad(180));
     Popups::GetInstance()->FillPlane();
 
-    Popups::GetInstance()->UpdateOAMech(JMath::Rad(90));
-    Popups::GetInstance()->ConvertPrintableOAMech();
+    Popups::GetInstance()->UpdateComponent(JMath::Rad(90));
+    Popups::GetInstance()->ConvertComponent();
 
-    Popups::GetInstance()->UpdateOAMech(JMath::Rad(180));
+    Popups::GetInstance()->UpdateComponent(JMath::Rad(180));
     Popups::GetInstance()->TrimOutlines();
 
-    Popups::GetInstance()->UpdateOAMech(JMath::Rad(90));
+    Popups::GetInstance()->UpdateComponent(JMath::Rad(90));
     bool one_more = Popups::GetInstance()->SegmentSpace();
 
     if (one_more)
     {
-      Popups::GetInstance()->UpdateOAMech(JMath::Rad(180));
+      Popups::GetInstance()->UpdateComponent(JMath::Rad(180));
       Popups::GetInstance()->TrimOutlines();
 
-      Popups::GetInstance()->UpdateOAMech(JMath::Rad(90));
+      Popups::GetInstance()->UpdateComponent(JMath::Rad(90));
       Popups::GetInstance()->SegmentSpace();
     }
 
-    Popups::GetInstance()->UpdateOAMech(JMath::Rad(180));
-    Popups::GetInstance()->TrimOutlines();
-
-    Popups::GetInstance()->UpdateOAMech(JMath::Rad(90));
-    Popups::GetInstance()->SegmentSpace();
-
-    Popups::GetInstance()->UpdateOAMech(JMath::Rad(90));
+    Popups::GetInstance()->UpdateComponent(JMath::Rad(90));
     Popups::GetInstance()->ResetMeshs();
   }
   else
@@ -411,7 +399,6 @@ void ToolCore::Convert(OglForQt* ogl)
 
   edit_mode_ = E_EDIT_MODE::DEFAULT;
   emit SetAngle90(90);
-  //emit SetAngle90(180);
 
   ogl->RedrawWindow();
 }
@@ -481,7 +468,7 @@ void ToolCore::InitializeProps()
   delete_props_ = { nullptr, nullptr, nullptr, E_FOLD_TYPE::DEFAULT };
 
   deform_props_.step = E_DEFORM_STEP::DEFAULT;
-  deform_props_.deform_mech = nullptr;
+  deform_props_.deform_comp = nullptr;
   deform_props_.parent = nullptr;
   deform_props_.grand_parent = nullptr;
   deform_props_.fold_type = E_FOLD_TYPE::DEFAULT;
@@ -504,7 +491,7 @@ void ToolCore::ProgressDeformStep()
     deform_props_.handle = E_DEFORM_HANDLE::DEFAULT;
     deform_props_.handle_dist = -1.0;
     deform_props_.step = E_DEFORM_STEP::SELECT_MECH;
-    Popups::GetInstance()->TrimOAMech();
+    Popups::GetInstance()->TrimComponent();
   }
 }
 
@@ -606,12 +593,12 @@ bool ToolCore::Placable() const
 bool ToolCore::Deletable() const
 {
   return (edit_mode_ == E_EDIT_MODE::DELETION) &&
-    (delete_props_.delete_mech != nullptr) &&
+    (delete_props_.delete_comp != nullptr) &&
     (delete_props_.parent != nullptr) &&
     (delete_props_.grand_parent != nullptr) &&
     (delete_props_.grand_parent->Id() >= 0) &&
     (delete_props_.parent->Id() >= delete_props_.grand_parent->Id()) &&
-    (delete_props_.delete_mech->Id() > delete_props_.parent->Id()) &&
+    (delete_props_.delete_comp->Id() > delete_props_.parent->Id()) &&
     (delete_props_.fold_type != E_FOLD_TYPE::DEFAULT);
 }
 
@@ -627,12 +614,12 @@ bool ToolCore::SelectedMech() const
 {
   return (edit_mode_ == E_EDIT_MODE::DEFORMATION) &&
     (deform_props_.step == E_DEFORM_STEP::MOVE_HANDLE) &&
-    (deform_props_.deform_mech != nullptr) &&
+    (deform_props_.deform_comp != nullptr) &&
     (deform_props_.parent != nullptr) &&
     (deform_props_.grand_parent != nullptr) &&
     (deform_props_.grand_parent->Id() >= 0) &&
     (deform_props_.parent->Id() >= deform_props_.grand_parent->Id()) &&
-    (deform_props_.deform_mech->Id() > deform_props_.parent->Id()) &&
+    (deform_props_.deform_comp->Id() > deform_props_.parent->Id()) &&
     (deform_props_.fold_type != E_FOLD_TYPE::DEFAULT) &&
     (deform_props_.handles.size() == 4);
 }
@@ -644,12 +631,12 @@ bool ToolCore::MovableHandle() const
 
   return (edit_mode_ == E_EDIT_MODE::DEFORMATION) &&
     (deform_props_.step == E_DEFORM_STEP::MOVE_HANDLE) &&
-    (deform_props_.deform_mech != nullptr) &&
+    (deform_props_.deform_comp != nullptr) &&
     (deform_props_.parent != nullptr) &&
     (deform_props_.grand_parent != nullptr) &&
     (deform_props_.grand_parent->Id() >= 0) &&
     (deform_props_.parent->Id() >= deform_props_.grand_parent->Id()) &&
-    (deform_props_.deform_mech->Id() > deform_props_.parent->Id()) &&
+    (deform_props_.deform_comp->Id() > deform_props_.parent->Id()) &&
     (deform_props_.fold_type != E_FOLD_TYPE::DEFAULT) &&
     (deform_props_.handles.size() == 4) &&
     (handle_id >= 0) &&

@@ -83,16 +83,16 @@ public:
   void IsMaximumSize(const Fold& root_fold);
   void IsMinimumLength(double nozzle_width);
 
-  void TrimOAFace
+  void TrimPatch
   (
     const std::vector<Rect3D>& other_rects,
     const std::vector<Rect3D>& child_rects,
     const ConvertProperties& cvt_props
   );
 
-  void AddChild(const E_FOLD_TYPE& fold_type, Component* mech);
-  void DeleteChild(const E_FOLD_TYPE& fold_type, int mech_id);
-  double DeformOAFace(const E_DEFORM_HANDLE& handle, double move_len, const ConvertProperties& cvt_props);
+  void AddChild(const E_FOLD_TYPE& fold_type, Component* comp);
+  void DeleteChild(const E_FOLD_TYPE& fold_type, int id);
+  double DeformPatch(const E_DEFORM_HANDLE& handle, double move_len, const ConvertProperties& cvt_props);
 
   Rect3D ComponentRect() const;
 
@@ -107,15 +107,12 @@ public:
     const ConvertProperties& cvt_props
   );
 
-  void GenerateInflatedPatch
-  (
-    JMesh::Mesh& outlines,
-    const ConvertProperties& cvt_props
-  );
+  void GenerateInflatedPatch(const ConvertProperties& cvt_props);
+  JMesh::Mesh InflatedPatch() const;
 
   void TrimOutlines
   (
-    const E_FACE_TYPE& face_type,
+    const E_FACE_TYPE& type,
     const JMesh::Mesh& outlines,
     const ConvertProperties& cvt_props
   );
@@ -153,8 +150,8 @@ public:
 
 
 public:
-  static void MechIdGenerater(int id) { s_mech_id_generator_ = id; }
-  static int GenerateMechId() { return s_mech_id_generator_++; }
+  static void MechIdGenerater(int id) { s_comp_id_generator_ = id; }
+  static int GenerateMechId() { return s_comp_id_generator_++; }
 
   static bool Trimmed() { return s_trimmed_; }
   static void Trimmed(bool trimmed) { s_trimmed_ = trimmed; }
@@ -171,7 +168,7 @@ private:
 
 
 private:
-  static int s_mech_id_generator_;
+  static int s_comp_id_generator_;
   static bool s_trimmed_;
 
   const int id_;

@@ -52,7 +52,7 @@ public:
 
 public:
   E_FACE_TYPE Type() const { return type_; }
-  bool LoadedMesh() const { return printable_state_.LoadedMesh(); }
+  bool LoadedMesh() const { return fab_state_.LoadedMesh(); }
 
 
 public:
@@ -81,16 +81,18 @@ public:
 
   void GenerateInflatedPatch
   (
-    JMesh::Mesh& clip_plane,
     const Rect3D& rect,
     const EVec3d& depend_org,
     const ConvertProperties& cvt_props
   );
 
+  JMesh::Mesh InflatedPatch() const { return fab_state_.InflatedPatch(); }
+
   void TrimOutlines
   (
     const JMesh::Mesh& clip_plane,
     const EVec3d& depend_org,
+    const std::vector<EVec3d>& rect,
     const ConvertProperties& cvt_props
   );
 
@@ -141,6 +143,6 @@ private:
   std::vector<EVec2d> rel_pattern_coords_;
   EMatXi idx_array_;
 
-  FabricatablePatch printable_state_;
+  FabricatablePatch fab_state_;
 };
 

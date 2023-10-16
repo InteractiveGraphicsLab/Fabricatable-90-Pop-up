@@ -22,6 +22,7 @@
 
 using std::vector;
 using std::pair;
+using std::tuple;
 
 
 FabricatablePatch::FabricatablePatch()
@@ -29,11 +30,10 @@ FabricatablePatch::FabricatablePatch()
 	type_ = E_FACE_TYPE::DEFAULT;
 	mount_face_ = false;
 	loaded_mesh_ = false;
-  skip_ = false;
   rel_plane_ = JMesh::Mesh();
   rel_original_plane_ = JMesh::Mesh();
-  rel_fill_plane_ = JMesh::Mesh();
-  rel_original_fill_plane_ = JMesh::Mesh();
+  inflated_plane_ = JMesh::Mesh();
+  projected_img_ = cv::Mat();
   rel_outside_ = JMesh::Mesh();
   rel_patch_ = JMesh::Mesh();
 }
@@ -44,12 +44,10 @@ FabricatablePatch::FabricatablePatch(const E_FACE_TYPE& type, bool mount_face)
 	type_ = type;
 	mount_face_ = mount_face;
 	loaded_mesh_ = false;
-  skip_ = false;
   rel_plane_ = JMesh::Mesh();
   rel_original_plane_ = JMesh::Mesh();
-  rel_fill_plane_ = JMesh::Mesh();
-  rel_original_fill_plane_ = JMesh::Mesh();
   inflated_plane_ = JMesh::Mesh();
+  projected_img_ = cv::Mat();
   rel_outside_ = JMesh::Mesh();
   rel_patch_ = JMesh::Mesh();
 }
@@ -60,12 +58,10 @@ FabricatablePatch::FabricatablePatch(const FabricatablePatch& src)
 	this->type_ = src.type_;
 	this->mount_face_ = src.mount_face_;
 	this->loaded_mesh_ = src.loaded_mesh_;
-  this->skip_ = src.skip_;
   this->rel_plane_ = src.rel_plane_;
   this->rel_original_plane_ = src.rel_original_plane_;
-  this->rel_fill_plane_ = src.rel_fill_plane_;
-  this->rel_original_fill_plane_ = src.rel_original_fill_plane_;
   this->inflated_plane_ = src.inflated_plane_;
+  this->projected_img_ = src.projected_img_;
   this->rel_outside_ = src.rel_outside_;
   this->rel_patch_ = src.rel_patch_;
 }
@@ -99,11 +95,11 @@ void FabricatablePatch::FillPlane
 )
 {
   JMesh::Mesh concave_cut_box = GenerateConcaveCutBox180(rect, cvt_props);
-  rel_fill_plane_ = JCSG::Subtract(plane, concave_cut_box);
+  rel_plane_ = JCSG::Subtract(plane, concave_cut_box);
 
   JMesh::RelSystem rel_system = { depend_org, face_system.u_dir, face_system.v_dir, face_system.n_dir };
-  rel_fill_plane_ = JMesh::RelMesh(rel_fill_plane_, rel_system);
-  rel_original_fill_plane_ = rel_fill_plane_;
+  rel_plane_ = JMesh::RelMesh(rel_plane_, rel_system);
+  rel_original_plane_ = rel_plane_;
 }
 
 
@@ -122,9 +118,8 @@ void FabricatablePatch::ResetMeshs()
     rel_plane_= JMesh::Mesh();
 
   rel_original_plane_ = JMesh::Mesh();
-  rel_fill_plane_ = JMesh::Mesh();
-  rel_original_fill_plane_ = JMesh::Mesh();
   inflated_plane_ = JMesh::Mesh();
+  projected_img_ = cv::Mat();
   rel_outside_ = JMesh::Mesh();
 }
 
@@ -152,7 +147,7 @@ static JMesh::RelSystem sGetRelSystemAngle90(const E_FACE_TYPE& type, const EVec
 }
 
 
-void FabricatablePatch::CutPlane
+void FabricatablePatch::CutPatch
 (
 	const JMesh::Mesh& mesh,
 	const vector<EVec3d>& rect,
@@ -172,8 +167,6 @@ void FabricatablePatch::CutPlane
 	{
     rel_plane_ = JMesh::StdMesh(rel_plane_, rel_system);
     rel_original_plane_ = JMesh::StdMesh(rel_original_plane_, rel_system);
-    rel_fill_plane_ = JMesh::StdMesh(rel_fill_plane_, rel_system);
-    rel_original_fill_plane_ = JMesh::StdMesh(rel_original_fill_plane_, rel_system);
 		loaded_mesh_ = true;
 	}
   else
@@ -182,24 +175,13 @@ void FabricatablePatch::CutPlane
     JMesh::Mesh convex_cut_box = GenerateConvexCutBox(rect, cvt_props);
 
     rel_original_plane_ = JMesh::StdMesh(rel_original_plane_, rel_system);
-    rel_original_fill_plane_ = JMesh::StdMesh(rel_original_fill_plane_, rel_system);
-
     igl::copyleft::cgal::CSGTree original_plane_tree =
     {{{rel_original_plane_.V(), rel_original_plane_.F()}, {convex.V(), convex.F()}, "u"},
-     {convex_cut_box.V(), convex_cut_box.F()}, "m" };
-    std::cout << ".";
-
-    igl::copyleft::cgal::CSGTree original_fill_plane_tree =
-    {{{rel_original_fill_plane_.V(), rel_original_fill_plane_.F()}, {convex.V(), convex.F()}, "u"},
       {convex_cut_box.V(), convex_cut_box.F()}, "m" };
     std::cout << ".";
 
     rel_original_plane_ = JMesh::Mesh(original_plane_tree.cast_V<EMatXd>(), original_plane_tree.F());
-    rel_original_fill_plane_ = JMesh::Mesh(original_fill_plane_tree.cast_V<EMatXd>(), original_fill_plane_tree.F());
-
     rel_plane_ = JCSG::Intersect(mesh, rel_original_plane_);
-    std::cout << ".";
-    rel_fill_plane_ = JCSG::Intersect(mesh, rel_original_fill_plane_);
     std::cout << ".";
 
     loaded_mesh_ = true;
@@ -210,15 +192,9 @@ void FabricatablePatch::CutPlane
   std::cout << ".";
   rel_original_plane_ = JCSG::Subtract(rel_original_plane_, concave_cut_box);
   std::cout << ".";
-  rel_fill_plane_ = JCSG::Subtract(rel_fill_plane_, concave_cut_box);
-  std::cout << ".";
-  rel_original_fill_plane_ = JCSG::Subtract(rel_original_fill_plane_, concave_cut_box);
-  std::cout << ".";
 
-	rel_plane_ = JMesh::RelMesh(rel_plane_, rel_system);
+  rel_plane_ = JMesh::RelMesh(rel_plane_, rel_system);
   rel_original_plane_ = JMesh::RelMesh(rel_original_plane_, rel_system);
-  rel_fill_plane_ = JMesh::RelMesh(rel_fill_plane_, rel_system);
-  rel_original_fill_plane_ = JMesh::RelMesh(rel_original_fill_plane_, rel_system);
 
   std::cout << " Done" << std::endl;
 }
@@ -226,7 +202,6 @@ void FabricatablePatch::CutPlane
 
 void FabricatablePatch::GenerateInflatedPatch
 (
-	JMesh::Mesh& clip_plane,
 	const vector<EVec3d> rect,
 	const FaceCoordSystem& face_system,
 	const EVec3d& depend_org,
@@ -236,22 +211,35 @@ void FabricatablePatch::GenerateInflatedPatch
 	if (mount_face_)
 		return;
 
-	if (loaded_mesh_)
+	if (!inflated_plane_.Exist())
 	{
-    bool not_inflate_plane = !inflated_plane_.Exist();
-
-    if (not_inflate_plane)
-      std::cout << "Generate Inflate Patch";
-
-    JMesh::Mesh inflate_plane = InfatePlane(rect, face_system, depend_org, cvt_props);
-    clip_plane = JCSG::Union(clip_plane, inflate_plane);
-
-    if (not_inflate_plane)
-      std::cout << ".";
-
-    if (not_inflate_plane)
-      std::cout << "Done" << std::endl;
+    std::cout << "Generate Inflate Patch";
+    JMesh::Mesh inflate_plane = InfatePatch(rect, face_system, depend_org, cvt_props);
+    std::cout << "Done" << std::endl;
 	}
+}
+
+
+static cv::Mat sProjectImage(const vector<EVec3d>& rect, const JMesh::Mesh& projection, const EVec3d& depend_org, const E_FACE_TYPE& type, const double AMPL)
+{
+  const int WIDTH = int(AMPL * (rect[3] - rect[0]).norm());
+  const int HEIGHT = int(AMPL * (rect[1] - rect[0]).norm());
+  cv::Mat projection_img = cv::Mat::zeros(WIDTH, HEIGHT, CV_8UC1);
+
+  for (int i = 0; i < projection.F().rows(); i++)
+  {
+    vector<cv::Point> polygon_points(3);
+    for (int j = 0; j < projection.F().cols(); j++)
+    {
+      int x_img = int(AMPL * fabs(projection.V(projection.F(i, j), 0) - depend_org[0]));
+      int y_img = int(AMPL * fabs(projection.V(projection.F(i, j), 2) - depend_org[2]));
+      polygon_points[j] = cv::Point(x_img, y_img);
+    }
+
+    cv::fillPoly(projection_img, polygon_points, 255);
+  }
+
+  return projection_img;
 }
 
 
@@ -260,21 +248,30 @@ void FabricatablePatch::TrimOutlines
 	const JMesh::Mesh& outlines,
 	const FaceCoordSystem& face_system,
 	const EVec3d& depend_org,
+  const vector<EVec3d>& rect,
 	const ConvertProperties& cvt_props
 )
 {
-	if (loaded_mesh_)
-	{
-    std::cout << "Trimming Patch";
-		JMesh::RelSystem rel_system = { depend_org, face_system.u_dir, face_system.v_dir, face_system.n_dir };
+  if (loaded_mesh_)
+  {
+    JMesh::RelSystem rel_system = { depend_org, face_system.u_dir, face_system.v_dir, face_system.n_dir };
+    JMesh::Mesh plane = JMesh::StdMesh(rel_plane_, rel_system);
 
-		JMesh::Mesh plane = JMesh::StdMesh(rel_fill_plane_, rel_system);
-		plane = JCSG::Subtract(plane, outlines);
-    std::cout << ".";
+    const double AMPL = 100.0;
+    vector<EVec3d> projected_plane_3d = JMesh::ProjectMesh(plane, rel_system);
+    JMesh::Mesh projected_plane = JMesh::Mesh(JUtil::ToEMatXd(projected_plane_3d), rel_plane_.F());
+    projected_img_ = sProjectImage(rect, projected_plane, depend_org, type_, AMPL);
 
-    rel_plane_ = JMesh::RelMesh(plane, rel_system);
-    std::cout << "Done" << std::endl;
-	}
+    if (outlines.Exist())
+    {
+      std::cout << "Trimming Patch";
+      plane = JCSG::Subtract(plane, outlines);
+      std::cout << ".";
+
+      rel_plane_ = JMesh::RelMesh(plane, rel_system);
+      std::cout << "Done" << std::endl;
+    }
+  }
 }
 
 
@@ -309,7 +306,6 @@ static vector<int> sGetConcaveFoldIndexList(const EMatXd& V, const vector<pair<d
       if (((concave_fold_list[j].first - (1e-5)) <= V(i, 0)) &&
           ((concave_fold_list[j].second + (1e-5)) >= V(i, 0)))
       {
-
         if ((fabs(V(i, 1)) <= 1e-5) && (fabs(V(i, 2)) <= 1e-5))
           index_list.push_back(i);
       }
@@ -511,31 +507,34 @@ bool FabricatablePatch::SegmentSweepRegion
   rel_patch_ = sRemoveIsolateMesh(rel_patch_, y_max, concave_fold_list);
   std::cout << ".";
 
-  if (!skip_)
+  if (!rel_patch_.Exist() ||
+      !sIsLongerMinimumConcaveFolds(rel_patch_, cvt_props, concave_fold_list) ||
+      !sIsLongerMinimumConvexFolds(rel_patch_, y_max, cvt_props))
   {
-    if (!rel_patch_.Exist() ||
-        !sIsLongerMinimumConcaveFolds(rel_patch_, cvt_props, concave_fold_list) ||
-        !sIsLongerMinimumConvexFolds(rel_patch_, y_max, cvt_props))
-    {
-      rel_plane_ = rel_original_plane_;
-      rel_fill_plane_ = rel_original_fill_plane_;
-
-      inflated_plane_ = JMesh::Mesh();
-      std::cout << "Done2" << std::endl;
-      return true;
-    }
-
-    //rel_fill_plane_ = JCSG::Intersect(rel_patch_, rel_original_fill_plane_);
-    //rel_plane_ = rel_fill_plane_;
-
-    rel_original_plane_ = JMesh::Mesh();
-    rel_original_fill_plane_ = JMesh::Mesh();
-    rel_outside_ = JMesh::Mesh();
+    rel_plane_ = rel_original_plane_;
     inflated_plane_ = JMesh::Mesh();
 
-    //rel_patch_ = JMesh::Mesh();
-    skip_ = true;
+    JMesh::RelSystem rel_system = { rect[0], face_system.u_dir, face_system.v_dir, face_system.n_dir};
+    JMesh::Mesh plane = JMesh::StdMesh(rel_plane_, rel_system);
+
+    const double AMPL = 100.0;
+    vector<EVec3d> projected_plane_3d = JMesh::ProjectMesh(rel_plane_, rel_system);
+    std::cout << ".";
+
+    JMesh::Mesh projected_plane = JMesh::Mesh(JUtil::ToEMatXd(projected_plane_3d), rel_plane_.F());
+    projected_img_ = sProjectImage(rect, projected_plane, rect[0], type_, AMPL);
+    std::cout << ".";
+
+    rel_outside_ = JMesh::Mesh();
+    rel_patch_ = JMesh::Mesh();
+
+    std::cout << "Done2" << std::endl;
+    return true;
   }
+
+  rel_original_plane_ = JMesh::Mesh();
+  inflated_plane_ = JMesh::Mesh();
+  rel_outside_ = JMesh::Mesh();
 
   std::cout << "Done" << std::endl;
   return false;
@@ -580,29 +579,85 @@ static JMesh::Mesh sMakeFatProjection(const JMesh::Mesh &projection, const EVec3
 	return fat_projection;
 }
 
-static cv::Mat sProjectImage(const vector<EVec3d>& rect, const JMesh::Mesh& projection,	const EVec3d& depend_org,	const ConvertProperties& cvt_props, const E_FACE_TYPE& type, const double AMPL)
+static vector<vector<cv::Point>> sFindContours(const cv::Mat& img, cv::ContourApproximationModes approx = cv::CHAIN_APPROX_SIMPLE, cv::RetrievalModes retr = cv::RETR_EXTERNAL)
 {
-	const int WIDTH  = int(AMPL * ((rect[3] - rect[0]).norm() + (0.5 * cvt_props.fold_gap)));
-	const int HEIGHT = int(AMPL * ((rect[1] - rect[0]).norm() + (2.0 * cvt_props.gap)));
-	cv::Mat projection_img = cv::Mat::zeros(WIDTH, HEIGHT, CV_8UC1);
-
-	for (int i = 0; i < projection.F().rows(); i++)
-	{
-		vector<vector<cv::Point>> polygon_points(1, vector<cv::Point>(3));
-		for (int j = 0; j < projection.F().cols(); j++)
-		{
-			int x_img = int(AMPL * fabs(projection.V(projection.F(i, j), 0) - depend_org[0] + cvt_props.gap));
-			int y_img = int(AMPL * fabs(projection.V(projection.F(i, j), 2) - depend_org[2]));
-			polygon_points[0][j] = cv::Point(x_img, y_img);
-		}
-
-  	cv::fillPoly(projection_img, polygon_points, 255);
-	}
-
-	return projection_img;
+  vector<vector<cv::Point>> contours;
+  vector<cv::Vec4i> hierarchy;
+  cv::findContours(img, contours, hierarchy, cv::RETR_EXTERNAL, cv::CHAIN_APPROX_SIMPLE);
+  return contours;
 }
 
-static vector<EVec2d> sToStdVectorContours(const vector<cv::Point>& cntrs, const E_FACE_TYPE& type, const EVec3d& depend_org, const ConvertProperties& cvt_props, const double AMPL)
+static cv::Mat sProjectFatImage(const vector<EVec3d>& rect, const JMesh::Mesh& projection,	const EVec3d& depend_org,	const ConvertProperties& cvt_props, const double AMPL)
+{
+  const int WIDTH = int(AMPL * ((rect[3] - rect[0]).norm() + (0.5 * cvt_props.fold_gap)));
+  const int HEIGHT = int(AMPL * ((rect[1] - rect[0]).norm() + (2.0 * cvt_props.gap)));
+  cv::Mat projection_img = cv::Mat::zeros(WIDTH, HEIGHT, CV_8UC1);
+
+  for (int i = 0; i < projection.F().rows(); i++)
+  {
+    vector<vector<cv::Point>> polygon_points(1, vector<cv::Point>(3));
+    for (int j = 0; j < projection.F().cols(); j++)
+    {
+      int x_img = int(AMPL * fabs(projection.V(projection.F(i, j), 0) - depend_org[0] + cvt_props.gap));
+      int y_img = int(AMPL * fabs(projection.V(projection.F(i, j), 2) - depend_org[2]));
+      polygon_points[0][j] = cv::Point(x_img, y_img);
+    }
+
+    cv::fillPoly(projection_img, polygon_points, 255);
+  }
+
+  int thickness = int(cvt_props.gap * 100.0) * 2;
+  vector<vector<cv::Point>> contours = sFindContours(projection_img);
+  for (int i = 0; i < contours.size(); i++)
+  {
+    for (int j = 0; j < contours[i].size(); j++)
+    {
+      cv::Point pt1 = contours[i][j];
+      cv::Point pt2 = (j == contours[i].size() - 1) ? contours[i][0] : contours[i][j + 1];
+
+      cv::line(projection_img, pt1, pt2, 255, thickness, 4);
+    }
+  }
+
+  return projection_img;
+}
+
+static void sFillNewContours(cv::Mat& child_drawn_img, const vector<vector<cv::Point>>& contours)
+{
+  for (int i = 0; i < contours.size(); i++)
+  {
+    bool connect_concave = false;
+    bool connect_convex  = false;
+
+    for (int j = 0; j < contours[i].size(); j++)
+    {
+      if (contours[i][j].y == 0)
+        connect_concave = true;
+      else if (contours[i][j].y == child_drawn_img.rows - 1)
+        connect_convex = true;
+
+      if (connect_concave && connect_convex)
+        break;
+    }
+
+    if (!connect_concave || !connect_convex)
+      cv::fillPoly(child_drawn_img, contours[i], 0);
+  }
+}
+
+static vector<vector<cv::Point>> sMakeContours(const cv::Mat& img, cv::Mat& pre_img, const EVec3d& depend_org, const E_FACE_TYPE& type, /*const vector<tuple<cv::Mat, EVec3d, E_FACE_TYPE>>& children, */const double AMPL)
+{
+  int pre_contours_num = sFindContours(pre_img).size();
+  vector<vector<cv::Point>> contours = sFindContours(img);
+
+  pre_img = img;
+  if (pre_contours_num != contours.size())
+    sFillNewContours(pre_img, contours);
+
+  return sFindContours(pre_img);
+}
+
+static vector<EVec2d> sToStdVectorContours(const vector<cv::Point>& cntrs, const EVec3d& depend_org, const E_FACE_TYPE& type, const ConvertProperties& cvt_props, const double AMPL)
 {
 	vector<EVec2d> cntrs_pos_2d = vector<EVec2d>(cntrs.size());
   for (int i = 0; i < cntrs.size(); i++)
@@ -611,16 +666,9 @@ static vector<EVec2d> sToStdVectorContours(const vector<cv::Point>& cntrs, const
     cntrs_pos_2d[i] /= AMPL;
 
     if (type == E_FACE_TYPE::VTYPE)
-    {
       cntrs_pos_2d[i][1] *= -1.0;
-      cntrs_pos_2d[i] += EVec2d(depend_org[0] - cvt_props.gap,
-                                depend_org[2]);
-    }
-    else if (type == E_FACE_TYPE::HTYPE)
-    {
-      cntrs_pos_2d[i] += EVec2d(depend_org[0] - cvt_props.gap,
-                                depend_org[2]);
-    }
+
+    cntrs_pos_2d[i] += EVec2d(depend_org[0] - cvt_props.gap, depend_org[2]);
   }
 
 	return cntrs_pos_2d;
@@ -656,7 +704,7 @@ static EMatXi sAlignNormals(const EMatXd& tri_cntrs_2d_V, const EMatXi& tri_cntr
 	return aligned_F;
 }
 
-static EMatXd sAddThickClipPlaneV(const EMatXd& tri_cntrs_2d_V, double thickness, const JMesh::Mesh& rel_outside)
+static EMatXd sAddThickClipPlaneV(const EMatXd& tri_cntrs_2d_V, double thickness)
 {
 	const int V_ROW = tri_cntrs_2d_V.rows();
 	EMatXd thicked_V(V_ROW * 2, 3);
@@ -719,7 +767,7 @@ static EMatXi sAddThickClipPlaneF(const EMatXd& tri_cntrs_2d_V, const EMatXi& tr
 }
 
 
-JMesh::Mesh FabricatablePatch::InfatePlane
+JMesh::Mesh FabricatablePatch::InfatePatch
 (
   const vector<EVec3d> rect,
 	const FaceCoordSystem& face_system,
@@ -735,40 +783,35 @@ JMesh::Mesh FabricatablePatch::InfatePlane
 		JMesh::RelSystem rel_system = { depend_org, face_system.u_dir, face_system.v_dir, face_system.n_dir };
     JMesh::Mesh plane = JMesh::StdMesh(rel_plane_, rel_system);
 
+		const double AMPL = 100.0;
     vector<EVec3d> projected_plane_3d = JMesh::ProjectMesh(plane, rel_system);
     std::cout << ".";
 
 		JMesh::Mesh projected_plane = JMesh::Mesh(JUtil::ToEMatXd(projected_plane_3d), plane.F());
-		projected_plane = sMakeFatProjection(projected_plane, face_system.n_dir, cvt_props.gap, 8);
+		cv::Mat projection_img = sProjectFatImage(rect, projected_plane, depend_org, cvt_props, AMPL);
     std::cout << ".";
 
-		const double AMPL = 100.0;
-		cv::Mat projection_img = sProjectImage(rect, projected_plane, depend_org, cvt_props, type_, AMPL);
-    std::cout << ".";
-
-		vector<vector<cv::Point>> cntrs;
-		vector<cv::Vec4i> hierarchy;
-		cv::findContours(projection_img, cntrs, hierarchy, cv::RETR_EXTERNAL, cv::CHAIN_APPROX_SIMPLE);
+    vector<vector<cv::Point>> contours = sMakeContours(projection_img, projected_img_, depend_org, type_, AMPL);
     std::cout << ".";
 
 		EMatXd V(0, 3);
 		EMatXi F(0, 3);
 		JMesh::Mesh inflated(V, F);
-		for (int i = 0; i < cntrs.size(); i++)
+		for (int i = 0; i < contours.size(); i++)
 		{
-			vector<EVec2d> cntrs_pos_2d = sToStdVectorContours(cntrs[i], type_, depend_org, cvt_props, AMPL);
+			vector<EVec2d> contours_2d = sToStdVectorContours(contours[i], depend_org, type_, cvt_props, AMPL);
 
-			EMatXd cntrs_2d_H(0, 2);
-			EMatXd cntrs_2d_V = JUtil::ToEMatXd(cntrs_pos_2d);
-			EMatXi cntrs_2d_E = sGenerateContoursEdge(cntrs_2d_V);
+			EMatXd contours_H(0, 2);
+			EMatXd contours_V = JUtil::ToEMatXd(contours_2d);
+			EMatXi contours_E = sGenerateContoursEdge(contours_V);
 
-			EMatXd tri_cntrs_2d_V;
-			EMatXi tri_cntrs_2d_F;
-			igl::triangle::triangulate(cntrs_2d_V, cntrs_2d_E, cntrs_2d_H, "a1000.0", tri_cntrs_2d_V, tri_cntrs_2d_F);
-			tri_cntrs_2d_F = sAlignNormals(tri_cntrs_2d_V, tri_cntrs_2d_F);
+			EMatXd triangled_contours_V;
+			EMatXi triangled_contours_F;
+			igl::triangle::triangulate(contours_V, contours_E, contours_H, "a1000.0", triangled_contours_V, triangled_contours_F);
+			triangled_contours_F = sAlignNormals(triangled_contours_V, triangled_contours_F);
 
-			EMatXd inflated_V = sAddThickClipPlaneV(tri_cntrs_2d_V, cvt_props.thickness, rel_outside_);
-			EMatXi inflated_F = sAddThickClipPlaneF(tri_cntrs_2d_V, tri_cntrs_2d_F, inflated_V, cntrs[i]);
+			EMatXd inflated_V = sAddThickClipPlaneV(triangled_contours_V, cvt_props.thickness);
+			EMatXi inflated_F = sAddThickClipPlaneF(triangled_contours_V, triangled_contours_F, inflated_V, contours[i]);
 			inflated.Compose(JMesh::Mesh(inflated_V, inflated_F));
 		}
     std::cout << ".";
@@ -881,53 +924,49 @@ static JMesh::Mesh sBaseFoldCutBox(const vector<EVec3d>& rect, const E_FACE_TYPE
 
 JMesh::Mesh FabricatablePatch::GenerateConcaveCutBox90(const vector<EVec3d>& rect, const Fold& depend_fold,	const ConvertProperties& cvt_props) const
 {
-  JMesh::Mesh cut_box = JMesh::Mesh();
   if (mount_face_)
-  {
-    cut_box = sMountBaseFoldCutBox(rect, type_, cvt_props);
-  }
-  else
-  {
-    cut_box = sBaseFoldCutBox(rect, type_, cvt_props);
+    return sMountBaseFoldCutBox(rect, type_, cvt_props);
 
-    if ((static_cast<int>(depend_fold.type) != static_cast<int>(type_)) &&
-        (depend_fold.type != E_FOLD_TYPE::GTYPE))
+  JMesh::Mesh cut_box = JMesh::Mesh();
+  cut_box = sBaseFoldCutBox(rect, type_, cvt_props);
+
+  if ((static_cast<int>(depend_fold.type) != static_cast<int>(type_)) &&
+      (depend_fold.type != E_FOLD_TYPE::GTYPE))
+  {
+    EVec3d pos = JUtil::ErrEVec3d();
+    double width = J_CSG_OFFSET;
+    double height = -1.0;
+    double depth = -1.0;
+
+    double parent_left = depend_fold.org[0];
+    double parent_right = depend_fold.org[0] + depend_fold.u;
+    if (parent_left > rect[0][0])
     {
-      EVec3d pos = JUtil::ErrEVec3d();
-      double width = J_CSG_OFFSET;
-      double height = -1.0;
-      double depth = -1.0;
-
-      double parent_left = depend_fold.org[0];
-      double parent_right = depend_fold.org[0] + depend_fold.u;
-      if (parent_left > rect[0][0])
-      {
-        pos = rect[0] - EVec3d(J_CSG_OFFSET, 0.0, 0.0);
-        width += parent_left - rect[0][0];
-      }
-      else if (parent_right < rect[1][0])
-      {
-        pos = EVec3d(parent_right, rect[1][1], rect[1][2]);
-        width += rect[1][0] - parent_right;
-      }
-
-      if (type_ == E_FACE_TYPE::VTYPE)
-      {
-        pos += EVec3d(0.0, cvt_props.fold_gap, -(cvt_props.thickness + J_CSG_OFFSET));
-        height = cvt_props.fold_gap + J_CSG_OFFSET;
-        depth = cvt_props.thickness + 2.0 * J_CSG_OFFSET;
-      }
-      else if (type_ == E_FACE_TYPE::HTYPE)
-      {
-        pos += EVec3d(0.0, J_CSG_OFFSET, -J_CSG_OFFSET);
-        height = cvt_props.thickness + 2.0 * J_CSG_OFFSET;
-        depth = cvt_props.fold_gap + J_CSG_OFFSET;
-      }
-
-      JMesh::Rectangular overhang =
-      { pos, EVec3d::UnitX(), -EVec3d::UnitY(), EVec3d::UnitZ(), width, height, depth };
-      cut_box = JCSG::Union(cut_box, JMesh::RectangularMesh(overhang));
+      pos = rect[0] - EVec3d(J_CSG_OFFSET, 0.0, 0.0);
+      width += parent_left - rect[0][0];
     }
+    else if (parent_right < rect[1][0])
+    {
+      pos = EVec3d(parent_right, rect[1][1], rect[1][2]);
+      width += rect[1][0] - parent_right;
+    }
+
+    if (type_ == E_FACE_TYPE::VTYPE)
+    {
+      pos += EVec3d(0.0, cvt_props.fold_gap, -(cvt_props.thickness + J_CSG_OFFSET));
+      height = cvt_props.fold_gap + J_CSG_OFFSET;
+      depth = cvt_props.thickness + 2.0 * J_CSG_OFFSET;
+    }
+    else if (type_ == E_FACE_TYPE::HTYPE)
+    {
+      pos += EVec3d(0.0, J_CSG_OFFSET, -J_CSG_OFFSET);
+      height = cvt_props.thickness + 2.0 * J_CSG_OFFSET;
+      depth = cvt_props.fold_gap + J_CSG_OFFSET;
+    }
+
+    JMesh::Rectangular overhang =
+    { pos, EVec3d::UnitX(), -EVec3d::UnitY(), EVec3d::UnitZ(), width, height, depth };
+    cut_box = JCSG::Union(cut_box, JMesh::RectangularMesh(overhang));
   }
 
   return cut_box;

@@ -25,7 +25,7 @@
 
 struct DeleteProperties
 {
-	Component *delete_mech = nullptr;
+	Component *delete_comp = nullptr;
 	Component *parent = nullptr;
 	Component *grand_parent = nullptr;
 	E_FOLD_TYPE fold_type = E_FOLD_TYPE::DEFAULT;

@@ -724,7 +724,7 @@ public:
 
 
 
-  void TMesh::ExtractLinkedVertsPolys(
+  void TMeshExtractLinkedVertsPolys(
     const int vid,
     std::vector<int> &vert_ids,
     std::vector<int> &poly_ids) const
@@ -771,7 +771,7 @@ public:
   }
 
 
-  void TMesh::ExtractRingNeighborVerts(
+  void ExtractRingNeighborVerts(
     const int vid,
     const int ringsize,
     std::set<int> &output_ids) const
